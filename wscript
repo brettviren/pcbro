@@ -17,6 +17,7 @@ def configure(cfg):
     cfg.load("wcb")
 
     # boost 1.59 uses auto_ptr and GCC 5 deprecates it vociferously.
+    cfg.env.CXXFLAGS += ['-ggdb3']
     cfg.env.CXXFLAGS += ['-Wno-deprecated-declarations']
     cfg.env.CXXFLAGS += ['-Wall', '-Wno-unused-local-typedefs', '-Wno-unused-function']
     # cfg.env.CXXFLAGS += ['-Wpedantic', '-Werror']
@@ -25,4 +26,4 @@ def configure(cfg):
 def build(bld):
     bld.load('wcb')
     bld.smplpkg('WireCellPcbro',
-                use='WireCellUtil WireCellIface WCT JSONCPP SPDLOG')
+                use='WireCellUtil WireCellIface WCT JSONCPP SPDLOG EIGEN')
