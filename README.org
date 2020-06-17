@@ -8,8 +8,15 @@ This is the Wire-Cell Toolkit User Package:
   $ ./wcb configure --prefix=/path/to/install \
         --with-wct=$HOME/opt/wct \
         [...maybe other --with-* flags...]
-  $ ./wcb
-  $ ./wcb install
+  $ ./wcb --notests install
+  $ ./wcb --alltests
 #+end_example
 
-More information can be seen in the [[https://github.com/WireCell/waf-tools/blob/master/README.org][waf-tools README]].
+* Details
+
+This WCT user package provides some Wire-Cell Toolkit components and
+support code for PCB anode R&D and the 50L detector.  
+
+- [X] a raw data decoder for the ~.bin~ files produced by the 50L DAQ.
+- [ ] a WCT "source" component that will provide this data as WCT frames
+
