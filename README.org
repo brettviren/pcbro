@@ -1,8 +1,30 @@
-#+title:  -- the  package
+#+title: pcbro: Wire-Cell PCB Anode Readout Package
 
-This is the Wire-Cell Toolkit User Package: 
+This WCT user package provides some Wire-Cell Toolkit components and
+support code for the PCB anode readout (pcbro) R&D and specifically
+its use in the 50L test detector.
+
+* Roadmap
+
+The development roadmap for this package is:
+
+- [X] generate initial package skeleton with [[https://github.com/brettviren/moo][moo]].
+- [X] raw data decoder for the ~.bin~ files produced by the 50L DAQ.
+- [ ] a WCT "source" component that will provide this data as WCT frames
+- [ ] a WCT configuration to convert ~.bin~ to ~.npz~ files
+- [ ] produce event displays to confirm decoder works
+
+After this is done, most work is outside the repo:
+
+- [ ] produce Garfield simulation output (Yichen)
+- [ ] convert Garfield output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
+- [ ] produce fake WCT "wires file" mostly to serve as channel map (save to ~wire-cell-data~)
+- [ ] develop WCT configuration to run sigproc on ~.bin~ and save results to zero-padded ~.npz~
 
 * Install
+
+This package is not yet ready for use but it may be built against a
+WCT installation doing something like:
 
 #+begin_example
   $ ./wcb configure --prefix=/path/to/install \
@@ -11,12 +33,4 @@ This is the Wire-Cell Toolkit User Package:
   $ ./wcb --notests install
   $ ./wcb --alltests
 #+end_example
-
-* Details
-
-This WCT user package provides some Wire-Cell Toolkit components and
-support code for PCB anode R&D and the 50L detector.  
-
-- [X] a raw data decoder for the ~.bin~ files produced by the 50L DAQ.
-- [ ] a WCT "source" component that will provide this data as WCT frames
 
