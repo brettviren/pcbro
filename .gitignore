@@ -2,3 +2,5 @@
 .lock-waf*
 build
 *~
+install
+.envrc

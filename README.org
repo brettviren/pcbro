@@ -10,15 +10,15 @@ The development roadmap for this package is:
 
 - [X] generate initial package skeleton with [[https://github.com/brettviren/moo][moo]].
 - [X] raw data decoder for the ~.bin~ files produced by the 50L DAQ.
-- [ ] a WCT "source" component that will provide this data as WCT frames
+- [X] a WCT "source" component that will provide this data as WCT tensors
 - [ ] a WCT configuration to convert ~.bin~ to ~.npz~ files
 - [ ] produce event displays to confirm decoder works
 
 After this is done, most work is outside the repo:
 
+- [ ] produce fake WCT "wires file" mostly to serve as channel map (save to ~wire-cell-data~)
 - [ ] produce Garfield simulation output (Yichen)
 - [ ] convert Garfield output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
-- [ ] produce fake WCT "wires file" mostly to serve as channel map (save to ~wire-cell-data~)
 - [ ] develop WCT configuration to run sigproc on ~.bin~ and save results to zero-padded ~.npz~
 
 * Install

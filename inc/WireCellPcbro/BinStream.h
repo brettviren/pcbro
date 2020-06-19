@@ -203,7 +203,7 @@ namespace pcbro {
             const size_t drows = block.rows() - nrows;
             nrows = block.rows();
 
-            std::cerr << "link: nrows: " << nrows << " drows: " << drows << std::endl;
+            // std::cerr << "link: nrows: " << nrows << " drows: " << drows << std::endl;
 
             if (drows < max_rows) {
                 return;
@@ -220,7 +220,7 @@ namespace pcbro {
             block32_t link;
             read_link(in, link);
             size_t nrows = link.rows();
-            std::cerr << "trigger: link:" << ilink << " nrows:" << nrows << " nrowsin:" << nrowsin << std::endl;
+            // std::cerr << "trigger: link:" << ilink << " nrows:" << nrows << " nrowsin:" << nrowsin << std::endl;
             if (nrows > nrowshere) {
                 nrowshere = nrows;
                 block.resize(nrowsin + nrowshere, Eigen::NoChange);

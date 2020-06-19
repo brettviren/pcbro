@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
         throw std::runtime_error("bad file");
     }
 
-    // prime the pump.  This should probably be absorbed.
+    // prime the pump.  fixme: this should probably be absorbed in BinSream somehow.
     pcbro::Header header;
     fstr >> header;
     dump(header);
