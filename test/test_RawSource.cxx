@@ -1,62 +1,74 @@
 #include "WireCellPcbro/RawSource.h"
-#include "WireCellUtil/Testing.h"
-#include "WireCellUtil/Array.h"
+
 #include "WireCellIface/ITensorSet.h"
 
-#include <iostream>
+#include "WireCellUtil/Testing.h"
+#include "WireCellUtil/Array.h"
+#include "WireCellUtil/Logging.h"
+
+#include <sstream>
+
+using spdlog::debug;
+using spdlog::info;
+using spdlog::error;
+
+
 
 int main(int argc, char* argv[])
 {
+    WireCell::Log::add_stdout(true, "debug");
+    // fixme, this shouldn't be needed to see debug level!
+    spdlog::set_level(spdlog::level::debug); 
+
     if (argc != 2) {
-        std::cerr << "need a .bin file" << std::endl;
+        error("need a .bin file");
         return 0;
     }
-
+    debug("starting");
     pcbro::RawSource rawsrc;
 
     auto cfg = rawsrc.default_configuration();
     cfg["filename"] = argv[1];
     cfg["tag"] = "test-tag";
-    std::cout << cfg << std::endl;
+    debug("cfg: {}", cfg);
     rawsrc.configure(cfg);
     
     WireCell::ITensorSet::pointer ts;
     while (true) {
         bool ok = rawsrc(ts);
         if (!ok) {
-            std::cerr << "RawSource is empty\n";
+            debug("RawSource is empty");
             break;
         }
         if (!ts) {
-            std::cerr << "RawSource sends EOS\n";
+            debug("RawSource sends EOS");
             continue;
         }
-        std::cerr << "set metadata: " << ts->metadata() << std::endl;
+        debug("set metadata: {}", ts->metadata());
         auto tensors = ts->tensors();
-        std::cerr << tensors->size() << " tensors\n";
+        debug("{} tensors", tensors->size());
         for (auto& ten : *tensors) {
-            std::cerr << "tensor metadata: " << ten->metadata() << std::endl;
+            debug("tensor metadata: {}", ten->metadata());
             auto shape = ten->shape();
-            std::cerr << "shape:";
-            for (auto s : shape) {
-                std::cerr << " " << s;
-            }
-            std::cerr << std::endl;
+
             if (shape.size() == 1) {
                 Eigen::Map<const Eigen::ArrayXi> arr((const int*) ten->data(), shape[0]);
                 const auto& t = arr.transpose();
+                std::stringstream ss;
                 for (int ind=0; ind<10; ++ind) {
-                    std::cerr << " " << t(ind);
+                    ss << " " << t(ind);
                 }
-                std::cerr << std::endl;
+                debug(ss.str());
             }
             if (shape.size() == 2) {
                 Eigen::Map<const Eigen::ArrayXXf> arr((const float*) ten->data(), shape[0], shape[1]);
                 for (int row=0; row<10; ++row) {
+                    std::stringstream ss;
                     for (int col=0; col<10; ++col) {
-                        std::cerr << " " << arr(row,col);
+                        float x = arr(row,col);
+                        ss << fmt::format(" {:.0f}", x);
                     }
-                    std::cerr << std::endl;
+                    debug(ss.str());
                 }
             }
         }

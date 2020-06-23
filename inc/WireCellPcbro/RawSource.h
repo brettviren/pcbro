@@ -1,12 +1,13 @@
 #ifndef PCBRO_RAWSOURCE_H_SEEN
 #define PCBRO_RAWSOURCE_H_SEEN
 
+#include "WireCellPcbro/BinFile.h"
+
 #include "WireCellUtil/Units.h"
 
 #include "WireCellIface/IConfigurable.h"
 #include "WireCellIface/ITensorSetSource.h"
 
-#include <fstream>
 #include <string>
 
 namespace pcbro {
@@ -25,7 +26,10 @@ namespace pcbro {
         virtual bool operator()(WireCell::ITensorSet::pointer& ts);
 
     private:
-        std::ifstream m_fstr;
+
+        pcbro::raw_data_t m_rd;
+        pcbro::raw_data_itr m_cur;
+
         bool m_eos{false};
         int m_ident{0};
         double m_tick{0.5*WireCell::units::us};

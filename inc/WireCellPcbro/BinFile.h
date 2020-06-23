@@ -4,19 +4,36 @@
 #include <Eigen/Core>
 
 #include <fstream>
-#include <iostream>             // testing
+// #include <iostream>             // testing
 #include <vector>
 
 namespace pcbro {
 
+    // A "package" has a header and a sequence of samples.  A package
+    // which is shorter than the expected size indicates end of a
+    // "link" of data.
     const size_t default_package_size = 0x1df4/2-10;
 
+    // Raw data is read from file as 2byte big-endian shorts.
     using raw_data_t = std::vector<uint16_t>;
-    using raw_data_itr = std::vector<uint16_t>::const_iterator;
+    using raw_data_itr = std::vector<uint16_t>::iterator;
 
+    // Link data is raw data inflated to 4byte signed int with header
+    // removed and some detailed machinations patched up.
     using link_data_t = std::vector<int>;
+    using link_data_itr = link_data_t::iterator;
     using link_data_bitr = std::back_insert_iterator< std::vector<int> >;
 
+    // Cooked data is a 2D Eigen3 array holding 16 bit signed ints
+    // with 12 bit values.  A row holds one sample time across 128
+    // columns of channels.  Channels are numbered by a convention
+    // that orders them by first collection strips and then induction
+    // strips.  Electronic channel numbers are not exposed.
+    using adc_t = int16_t;
+    using block128_t = Eigen::Array<adc_t, Eigen::Dynamic, 128>;
+
+
+    /// Slurp in all raw data from a stream.
     raw_data_t read_raw_data(std::istream& stream) {
         raw_data_t rd;
         while (stream) {
@@ -32,6 +49,9 @@ namespace pcbro {
         return 0xffffffff & (((*it) << 16 ) + (*(it+1)));
     }
 
+    /// Find end of a package starting at beg but do not read past
+    /// end.  Throws runtime_error if data is corrupt.  Returns end if
+    /// no next package is found.
     raw_data_itr seek_package(raw_data_itr beg, raw_data_itr end) {
         auto pkg_cnt0 = word(beg);
         auto pkg_res0 = word(beg+2);
@@ -50,7 +70,7 @@ namespace pcbro {
         return end;
     }
 
-    // Append package data to link data
+    /// Append package data to link data.
     void append_link(raw_data_itr beg, raw_data_itr end, link_data_bitr itr) {
         raw_data_itr start = beg + 8;
         if (*start == 0 and (*(start+1) == 0xface or *(start+1) == 0xfeed)) {
@@ -61,6 +81,8 @@ namespace pcbro {
         }
     }
 
+    /// Append to bitr all data in the link starting at beg.  Return
+    /// iterator to start of next package or end.
     raw_data_itr make_link(raw_data_itr beg, raw_data_itr end,
                            link_data_bitr bitr,
                            size_t package_size = default_package_size) {
@@ -72,7 +94,7 @@ namespace pcbro {
             append_link(beg, next, bitr);
             size_t psize = std::distance(beg, next);
             if (psize < package_size) {
-                std::cerr << "make_link: " << psize << " " << package_size << std::endl;
+                //std::cerr << "make_link: " << psize << " " << package_size << std::endl;
                 return next;
             }
             beg = next;
@@ -80,23 +102,18 @@ namespace pcbro {
         std::runtime_error("impossible");
     }
 
-    using adc_t = int16_t;
-    using block128_t = Eigen::Array<adc_t, Eigen::Dynamic, 128>;
-
-    using link_data_citr = link_data_t::const_iterator;
-
-    // unpack four channels
+    /// Unpack one sample across four channels from link data.
     template <typename Derived>
-    void unpack_sample4(Eigen::ArrayBase<Derived>&& row, link_data_citr beg) {
+    void unpack_sample4(Eigen::ArrayBase<Derived>&& row, link_data_itr beg) {
         row[ 3] = 0x0fff & ( ( *(beg+0) & 0X0FFF)<<0);
         row[ 2] = 0x0fff & ( ((*(beg+1) & 0X00FF)<<4) + ((*(beg+0) & 0XF000) >> 12));
         row[ 1] = 0x0fff & ( ((*(beg+2) & 0X000F)<<8) + ((*(beg+1) & 0XFF00) >> 8 ));
         row[ 0] = 0x0fff & ( ((*(beg+2) & 0XFFF0)>>4));
     }
 
-    // Unpack one 32 channel sample array
+    // Unpack one sample across 32 channels from link data.
     template <typename Derived>
-    void unpack_sample32(Eigen::ArrayBase<Derived>&& row, link_data_citr beg)
+    void unpack_sample32(Eigen::ArrayBase<Derived>&& row, link_data_itr beg)
     {
         // adc_t pre = 0;
         // if (*beg == 0xfeed) {
@@ -154,8 +171,10 @@ namespace pcbro {
         // row[24].append(pre +  ((*(beg+12+9+3) & 0XFFF0)>>4));
     }
 
+    /// Unpack link data to array.  Array is assumed to be sized large
+    /// enough.
     template <typename Derived>
-    void unpack_link(Eigen::ArrayBase<Derived>&& block, link_data_citr beg, link_data_citr end) {
+    void unpack_link(Eigen::ArrayBase<Derived>&& block, link_data_itr beg, link_data_itr end) {
         Eigen::Index irow = 0;
 
         while (irow < block.rows() and beg < end+25) {
@@ -166,6 +185,9 @@ namespace pcbro {
     }
 
 
+    /// Unpack one trigger of four links.  Return the start of the
+    /// next package or end.  Throws range_error if attempt to read
+    /// past raw data.
     raw_data_itr make_trigger(block128_t& block,
                               raw_data_itr beg, raw_data_itr end,
                               size_t package_size = default_package_size) {

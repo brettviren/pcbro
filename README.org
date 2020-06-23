@@ -11,8 +11,8 @@ The development roadmap for this package is:
 - [X] generate initial package skeleton with [[https://github.com/brettviren/moo][moo]].
 - [X] raw data decoder for the ~.bin~ files produced by the 50L DAQ.
 - [X] a WCT "source" component that will provide this data as WCT tensors
-- [ ] a WCT configuration to convert ~.bin~ to ~.npz~ files
-- [ ] produce event displays to confirm decoder works
+- [X] a WCT configuration to convert ~.bin~ to ~.npz~ files
+- [X] produce event displays to confirm decoder works
 
 After this is done, most work is outside the repo:
 
@@ -20,6 +20,35 @@ After this is done, most work is outside the repo:
 - [ ] produce Garfield simulation output (Yichen)
 - [ ] convert Garfield output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
 - [ ] develop WCT configuration to run sigproc on ~.bin~ and save results to zero-padded ~.npz~
+
+* Tests
+
+The basic unpacking is done by code in [[file:inc/WireCellPcbro/BinFile.h][BinFile.h]].  It can be tested like:
+
+#+begin_example
+  $ ./build/test_BinFile <test> <file.bin>
+#+end_example
+
+With ~<test>~ being one of: read, package, link, trigger and file.
+
+The WCT component that can inject ~.bin~ files into a WCT graph is
+~PcbroRawSource~ and can be tested directly like:
+
+#+begin_example
+  $ ./build/test_RawSource <file.bin>
+#+end_example
+
+A ~.bin~ file can be consumed to produce a ~.npz~ file with:
+
+#+begin_example
+  $ wire-cell -A infile=<file.bin> -A outfile=<file.npz> -c cfg/cli-bin2npz.jsonnet 
+  $ ipython --pylab
+  In [1]: f = numpy.load("junk.npz")
+  In [2]: plt.imshow(f['frame_bin2npz_31'])
+  In [3]: plt.savefig("trig31.png")
+#+end_example
+
+[[file:trig31.png]]
 
 * Install
 

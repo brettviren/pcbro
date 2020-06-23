@@ -1,5 +1,5 @@
 #include "WireCellPcbro/RawSource.h"
-#include "WireCellPcbro/BinStream.h"
+#include "WireCellPcbro/BinFile.h"
 
 #include "WireCellAux/SimpleTensor.h"
 #include "WireCellAux/SimpleTensorSet.h"
@@ -39,6 +39,9 @@ void pcbro::RawSource::configure(const WireCell::Configuration& cfg)
 {
     auto log = WireCell::Log::logger("pcbro");
 
+    m_tag = get<std::string>(cfg, "tag", "");
+    log->debug("RawSource: using tag: \"{}\"", m_tag);
+
     std::string fname = get<std::string>(cfg, "filename", "");
     if (fname.empty()) {
         std::runtime_error("pcbro::RawSource: empty input filename");
@@ -48,20 +51,14 @@ void pcbro::RawSource::configure(const WireCell::Configuration& cfg)
         std::runtime_error("pcbro::RawSource: currently only supports .bin files");
     }
 
-    m_fstr.open(fname, std::ios_base::in | std::ios_base::binary);
-    if (!m_fstr.is_open()) {
+    std::fstream fstr(fname, std::ios_base::in | std::ios_base::binary);
+    if (!fstr.is_open()) {
         std::runtime_error("pcbro::RawSource: failed to open file: " + fname);
     }
 
-    m_tag = get<std::string>(cfg, "tag", "");
-    log->debug("RawSource: using tag: \"{}\"", m_tag);
-
-    // Prime pump.  fixme: this should be hidden in BinStream somehow
-    pcbro::Header header;
-    m_fstr >> header;
-    if (header.res) {
-        std::runtime_error("pcbro::RawSource: file corrupt: " + fname);
-    }
+    // slurp!
+    m_rd = pcbro::read_raw_data(fstr);
+    m_cur = m_rd.begin();
 }
 
 bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
@@ -76,7 +73,7 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
     // This fills ticks (rows) vs electronics channels (columns).
     pcbro::block128_t block;
     try {
-        pcbro::read_trigger(m_fstr, block);
+        m_cur = pcbro::make_trigger(block, m_cur, m_rd.end());
     }
     catch (const std::range_error& e) {
         log->debug("RawSource: end of file");
@@ -115,18 +112,18 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
 
     const size_t nticks = block.rows(); // output is the TRANSPOSE
     const size_t nchans = block.cols(); // of the input block!
-    // output has rows:chans, cols:ticks
+    // WCT frame tensor wants float type, rows:chans, cols:ticks so
+    // transpose and cast.
     const std::vector<size_t> shape = {nchans, nticks};
     Aux::SimpleTensor<float>* frame = new Aux::SimpleTensor<float>(shape);
     Eigen::Map<Eigen::ArrayXXf> arr((float*) frame->data(), nchans, nticks);
     for (size_t ec = 0; ec < 128; ++ec) {
         size_t out_ind = chanPhy[ec]-1;
-        //arr.row(out_ind) = block.col(ec).cast<float>();
         for (int ind=0; ind<block.rows(); ++ind) {
             arr(out_ind, ind) = (float)block(ind, ec);
         }
 
-        log->debug("RawSource: col({})->row({}) {}", ec, out_ind, arr.row(out_ind).sum()/block.rows());
+        // log->trace("RawSource: col({})->row({}) {}", ec, out_ind, arr.row(out_ind).sum()/block.rows());
     }
     log->debug("RawSource: total sum: {}", arr.sum());
 

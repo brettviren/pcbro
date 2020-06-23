@@ -5,6 +5,7 @@
 
 using spdlog::debug;
 using spdlog::info;
+using spdlog::error;
 
 int test_read(std::istream& stream)
 {
@@ -19,7 +20,7 @@ int test_package(std::istream& stream)
     pcbro::raw_data_t rd = pcbro::read_raw_data(stream);
     pcbro::raw_data_itr end = pcbro::seek_package(rd.begin(), rd.end());
     assert(end != rd.end());
-    info("package: size: {}", std::distance(rd.cbegin(), end));
+    info("package: size: {}", std::distance(rd.begin(), end));
     return 0;
 }
 
@@ -29,9 +30,9 @@ int test_link(std::istream& stream)
     pcbro::link_data_t ld;
     pcbro::raw_data_itr next = pcbro::make_link(rd.begin(), rd.end(), 
                                                 pcbro::link_data_bitr(ld));
-    assert(next != rd.cend());
+    assert(next != rd.end());
     info("link: consumed raw: {}, made link: {}",
-         std::distance(rd.cbegin(), next), ld.size());
+         std::distance(rd.begin(), next), ld.size());
     return 0;
 }
 
@@ -90,7 +91,7 @@ int main(int argc, char* argv[])
     if (test == "file") {
         return test_file(fstr);
     }
-    std::cerr << "unknown test: " << test << std::endl;
+    error("unknown test: {}", test);
     return 0;
 
 }
