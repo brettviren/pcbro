@@ -1,5 +1,3 @@
-// write lots and lots and lots and lots of tests
-
 #include "WireCellPcbro/RawSource.h"
 #include "WireCellUtil/Testing.h"
 #include "WireCellUtil/Array.h"

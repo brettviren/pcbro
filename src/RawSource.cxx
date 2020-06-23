@@ -37,6 +37,8 @@ WireCell::Configuration pcbro::RawSource::default_configuration() const
 
 void pcbro::RawSource::configure(const WireCell::Configuration& cfg)
 {
+    auto log = WireCell::Log::logger("pcbro");
+
     std::string fname = get<std::string>(cfg, "filename", "");
     if (fname.empty()) {
         std::runtime_error("pcbro::RawSource: empty input filename");
@@ -52,6 +54,7 @@ void pcbro::RawSource::configure(const WireCell::Configuration& cfg)
     }
 
     m_tag = get<std::string>(cfg, "tag", "");
+    log->debug("RawSource: using tag: \"{}\"", m_tag);
 
     // Prime pump.  fixme: this should be hidden in BinStream somehow
     pcbro::Header header;
@@ -68,40 +71,35 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
         return false;
     }
 
+    auto log = WireCell::Log::logger("pcbro");
+
+    // This fills ticks (rows) vs electronics channels (columns).
     pcbro::block128_t block;
     try {
         pcbro::read_trigger(m_fstr, block);
     }
     catch (const std::range_error& e) {
-        auto log = WireCell::Log::logger("pcbro");
-        log->debug("pcbro: end of file");
+        log->debug("RawSource: end of file");
         m_eos = true;           // next time we return false
         return true;
     }
 
     ++m_ident;
+    log->debug("RawSource: [{}]: #{}: {} ticks", m_tag, m_ident, block.rows());
 
     // produce tensor set.
     Configuration set_md;
+    set_md["ident"] = m_ident;
     set_md["time"] = m_ident*units::s; // fixme: any meaningful value here?
     set_md["tick"] = m_tick;
+    set_md["tags"][0] = m_tag;
 
     ITensor::vector* itv = new ITensor::vector;
 
-    const size_t nticks = block.rows();
-    const size_t nchans = block.cols();
-    const std::vector<size_t> shape = {nchans, nticks};
-    Aux::SimpleTensor<float>* frame = new Aux::SimpleTensor<float>(shape);
-    Eigen::Map<Eigen::ArrayXXf> arr((float*) frame->data(), nticks, nchans);
-    arr = block.cast<float>();
+    // Output tensor assumes TRANSPOSE of block: ticks are columns!
+    // We also will apply the "physical channel map" so channels
+    // (rows) more closely map to wire order.
 
-    auto& wf_md = frame->metadata();
-    wf_md["tag"] = m_tag;
-    wf_md["pad"] = 0;
-    wf_md["tbin"] = 0.0;
-    wf_md["type"] = "waveform";
-    itv->push_back(ITensor::pointer(frame));
-    
     // Copied from "dataConversion.py".  Map electronics channel index
     // to a "physical" channel.  Collection runs over [0,61],
     // induction over [62,127].  Relative handedness is not yet known.
@@ -114,8 +112,34 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
          64,63,62,61,60,59,58,57,56,55,54,53,52,51,50,49,48,47,46,45,44,
          43,42,41,40,39,38,37,36,35,34,33};
 
-    Aux::SimpleTensor<int>* cht = new Aux::SimpleTensor<int>({chanPhy.size()});
-    memcpy(cht->store().data(), chanPhy.data(), cht->size());
+
+    const size_t nticks = block.rows(); // output is the TRANSPOSE
+    const size_t nchans = block.cols(); // of the input block!
+    // output has rows:chans, cols:ticks
+    const std::vector<size_t> shape = {nchans, nticks};
+    Aux::SimpleTensor<float>* frame = new Aux::SimpleTensor<float>(shape);
+    Eigen::Map<Eigen::ArrayXXf> arr((float*) frame->data(), nchans, nticks);
+    for (size_t ec = 0; ec < 128; ++ec) {
+        size_t out_ind = chanPhy[ec]-1;
+        //arr.row(out_ind) = block.col(ec).cast<float>();
+        for (int ind=0; ind<block.rows(); ++ind) {
+            arr(out_ind, ind) = (float)block(ind, ec);
+        }
+
+        log->debug("RawSource: col({})->row({}) {}", ec, out_ind, arr.row(out_ind).sum()/block.rows());
+    }
+    log->debug("RawSource: total sum: {}", arr.sum());
+
+    auto& wf_md = frame->metadata();
+    wf_md["pad"] = 0;
+    wf_md["tbin"] = 0.0;
+    wf_md["type"] = "waveform";
+    wf_md["tag"] = m_tag;
+    itv->push_back(ITensor::pointer(frame));
+    
+    Aux::SimpleTensor<int>* cht = new Aux::SimpleTensor<int>({128});
+    int* chdat = reinterpret_cast<int*>(cht->store().data());
+    std::iota(chdat, chdat+128, 1);
     auto& ch_md = cht->metadata();
     ch_md["type"] = "channels";
     ch_md["tag"] = m_tag;

@@ -34,7 +34,6 @@ void dump(pcbro::Header& h)
 
 int test_package_level(std::istream& fstr)
 {
-    pcbro::block32_t block;
 
     const size_t max_shorts = 0x1df4/2; // 3834
     const size_t max_rows = (max_shorts - 9) / 25; // 153
@@ -43,6 +42,7 @@ int test_package_level(std::istream& fstr)
     size_t nrows=0;
     size_t nlinks = 0;
 
+    pcbro::block32_t block;
     while (true) {
 
         pcbro::Header nhead;
@@ -59,8 +59,22 @@ int test_package_level(std::istream& fstr)
         
         std::cerr << "Main: " << std::dec << " pkg:"<< count
                   << " totrows:" << block.rows()
-                  << " drows:" << drows
+                  << " newrows:" << drows
                   << std::endl;
+        for (int irow=nrows; irow < block.rows(); ++irow) {
+            std::cerr << "row: " << irow;
+            for (int ind=0; ind<32; ++ind) {
+                uint16_t sample = block(irow,ind);
+                std::cerr << " " << ind << ":" << sample;
+                if (sample & 0xf000) {
+                    std::cerr << std::endl;
+                    assert((sample & 0xf000) == 0);
+                }
+            }            
+            std::cerr << std::endl;
+        }
+
+    
         nrows = block.rows();
         ++count;
         if (drows < max_rows) {
@@ -113,9 +127,16 @@ int test_trigger_level(std::istream& fstr)
             keep_going = false;
         }
         std::cerr << "Main: " << std::dec << " trigger:"<< ntrigs
-                  << " totrows:" << trigger.rows()
-                  << " keep_going:" << keep_going
+                  << " rXc:" << trigger.rows() << "," << trigger.cols()
+                  << " min:" << trigger.minCoeff()
+                  << " max:" << trigger.maxCoeff()
+                  << " tot:" << trigger.sum()
+                  << " avg:" << trigger.sum()/(1.0*trigger.rows()*trigger.cols())
                   << std::endl;
+        for (int ich=0; ich<128; ++ich) {
+            std::cerr << " " << ich << ":" << trigger.col(ich).sum()/(1.0*trigger.rows());
+        }
+        std::cerr << std::endl;
         ++ntrigs;
         trigger.resize(0, Eigen::NoChange);
     }

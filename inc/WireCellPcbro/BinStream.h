@@ -90,54 +90,47 @@ namespace pcbro {
         return in;
     }
 
-        
-    // This helps unpack the 4x12 bit samples which are packed in to 6
-    // bytes.  This bitfield struct provides the unpacking.
-    struct SampleFour {
-        // We only care about the first 6 bytes
-        uint64_t d:12, c:12, b:12, a:12;
-        // The above alone typically will pad out to 8 bytes for
-        // proper alignment and we add that explicitly.  When mapped
-        // to packed data, it will contain only garbage.
-        uint16_t pading{0};
-    };
+    inline Eigen::Index fill4(block32_t& block, Eigen::Index irow, Eigen::Index icol, char* buf) {
+        block(irow, icol+3) = 0x0fff&((0x0f00&(buf[1]<<8))|(0xff&(buf[0]<<0)));
+        block(irow, icol+2) = 0x0fff&((0x0ff0&(buf[2]<<4))|(0x0f&(buf[1]>>4)));
 
-    // Append four consequtive samples to row irow to four consequtive waveforms starting at icol.
-    // Return the column index one past what was filled.
-    inline Eigen::Index fill4(block32_t& block, Eigen::Index irow, Eigen::Index icol, SampleFour& s) {
-        block(irow, icol++) = s.a;
-        block(irow, icol++) = s.b;
-        block(irow, icol++) = s.c;
-        block(irow, icol++) = s.d;
-        return icol;
-    }
+        block(irow, icol+1) = 0x0fff&((0x0f00&(buf[4]<<8))|(0xff&(buf[3]<<0)));
+        block(irow, icol+0) = 0x0fff&((0x0ff0&(buf[5]<<4))|(0x0f&(buf[4]>>4)));
+
+        return icol+4;
+    };
 
     inline void append_sample(char buf[], block32_t& block) {
         Eigen::Index irow = block.rows();
         block.resize(irow+1, Eigen::NoChange);
-        //std::cerr << "appending: " << irow << std::endl;
+
+        // std::cerr << "appending: " << irow << std::endl;
+        // for (int ind=0; ind<48; ++ind) {
+        //     std::cerr << std::hex << " " << (int)(0xff&buf[ind]);
+        // }
+        // std::cerr << std::endl;
 
         Eigen::Index icol = 0;
-        icol = fill4(block, irow, icol, *(SampleFour*)&buf[6]);
-        icol = fill4(block, irow, icol, *(SampleFour*)&buf[0]);
         
-        icol = fill4(block, irow, icol, *(SampleFour*)&buf[18]);
-        icol = fill4(block, irow, icol, *(SampleFour*)&buf[12]);
-
-        icol = fill4(block, irow, icol, *(SampleFour*)&buf[30]);
-        icol = fill4(block, irow, icol, *(SampleFour*)&buf[24]);
+        icol = fill4(block, irow, icol, &buf[6]);
+        icol = fill4(block, irow, icol, &buf[0]);
         
-        icol = fill4(block, irow, icol, *(SampleFour*)&buf[42]);
-        icol = fill4(block, irow, icol, *(SampleFour*)&buf[36]);
-    }
+        icol = fill4(block, irow, icol, &buf[18]);
+        icol = fill4(block, irow, icol, &buf[12]);
 
-    // Read one 32-channel sample and append to block.
-    inline void read_sample(std::istream& s, block32_t& block) {
+        icol = fill4(block, irow, icol, &buf[30]);
+        icol = fill4(block, irow, icol, &buf[24]);
+        
+        icol = fill4(block, irow, icol, &buf[42]);
+        icol = fill4(block, irow, icol, &buf[36]);
 
-        // load in 24 shorts with 32x12 bits
-        char buf[48];
-        s.read(buf, 48);
-        append_sample(buf, block);
+        assert(icol == 32);
+        for (int ind=0; ind<icol; ++ind) {
+            uint16_t sample = block(irow, ind);
+            assert((sample&0xf000) == 0);
+            //std::cerr << std::hex << " " << block(irow,ind);
+        }
+        //std::cerr << std::endl;
     }
     
     /// Read in and append one package of samples to a block.  Reading
@@ -150,7 +143,8 @@ namespace pcbro {
         while (first == 0xface or first == 0xfeed) {
             ++nrows;
             if (nrows > max_rows) {
-                // It seems the DAQ can start saving without breaking into packages.
+                // It seems the DAQ can start saving without breaking
+                // up data into packages.
                 throw std::range_error("exceed max row");
             }
             in.read(buf, 48);    // one sample
@@ -166,16 +160,9 @@ namespace pcbro {
                 second = read_short(in);
             }
 
-            // const uint16_t tailm1 = 0xffff&(((0xff & buf[44]) <<8) | (0xff & buf[45]));
-            // const uint16_t tailm0 = 0xffff&(((0xff & buf[46]) <<8) | (0xff & buf[47]));
-            //std::cerr << std::hex << first << " " << second << " " << tailm1 << " " << tailm0 << std::endl;
             uint32_t seq = toint(0, second);
             PartialHeader ph(seq);
             in >> ph;
-
-            // std::cerr << "Header: seq:" << std::dec << ph.seq
-            //           << " res:" << ph.res
-            //           << " cont:" << std::hex << ph.cont << std::endl;
 
             if (ph.res) {
                 throw std::runtime_error("parse_error: header has nonzero res");
