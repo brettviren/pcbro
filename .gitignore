@@ -4,3 +4,6 @@ build
 *~
 install
 .envrc
+*.egg-info
+__pycache__
+*.json.bz2
