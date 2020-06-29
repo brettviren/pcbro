@@ -40,6 +40,23 @@ The WCT component that can inject ~.bin~ files into a WCT graph is
   $ ./build/test_RawSource <file.bin>
 #+end_example
 
+** Use Wire-Cell Toolkit
+
+Install WCT with PDSP's data files (at least) doing something like:
+
+#+begin_example
+  $ cd /path/to/wire-cell-toolkit
+  $ ./wcb configure --prefix=$PREFIX --with-jsonnet=$HOME/opt/jsonnet
+  $ ./wcb --notests install --install-config=all
+#+end_example
+
+Make sure ~WIRECELL_PATH~ includes WCT's installed config and data
+directory and pcbro's ~cfg/~, eg:
+
+#+begin_example
+  $ export WIRECELL_PATH=$PREFIX/share/wirecell:$HOME/dev/pcbro/cfg
+#+end_example
+
 ** Use WCT to decode raw data and write Numpy arrays
 
 A ~.bin~ file can be consumed to produce a ~.npz~ file with:
