@@ -23,6 +23,8 @@ After this is done, most work is outside the repo:
 
 * Tests
 
+** Basic raw data decoding
+
 The basic unpacking is done by code in [[file:inc/WireCellPcbro/BinFile.h][BinFile.h]].  It can be tested like:
 
 #+begin_example
@@ -38,17 +40,41 @@ The WCT component that can inject ~.bin~ files into a WCT graph is
   $ ./build/test_RawSource <file.bin>
 #+end_example
 
+** Use WCT to decode raw data and write Numpy arrays
+
 A ~.bin~ file can be consumed to produce a ~.npz~ file with:
 
 #+begin_example
-  $ wire-cell -A infile=<file.bin> -A outfile=<file.npz> -c cfg/cli-bin2npz.jsonnet 
+  $ wire-cell -l stdout -L debug -l junk.log:debug \
+              -A infile=<file.bin> -A outfile=<file.npz> \
+              -c cfg/cli-bin-npz.jsonnet 
+
   $ ipython --pylab
-  In [1]: f = numpy.load("junk.npz")
+  In [1]: f = numpy.load("<file.npz>")
   In [2]: plt.imshow(f['frame_bin2npz_31'])
   In [3]: plt.savefig("trig31.png")
 #+end_example
 
 [[file:trig31.png]]
+
+** Run WCT signal processing
+
+*WARNING* this is currently using a lot of bogus configuration ripped
+from PDSP and is surely wrong.  It just proves the mechanical parts
+are more or less working.
+
+#+begin_example
+  $ wire-cell -l stdout -L debug -l junk.log:debug \
+              -A infile=<file.bin> -A outfile=<file.npz> \
+              -c cfg/cli-bin-sp-npz.jsonnet
+
+  $ ipython --pylab
+  In [1]: f = numpy.load("<file.npz>")
+  In [2]: plt.imshow(f['frame_gauss0_31'])  
+  In [3]: plt.savefig("trig31-gauss.png")
+#+end_example
+
+[[file:trig31-gauss.png]]
 
 * Install
 
