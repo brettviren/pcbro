@@ -17,6 +17,7 @@ The development roadmap for this package is:
 - [X] develop WCT configuration to run sigproc on ~.bin~ and save results to zero-padded ~.npz~ (with bogus use of PDSP field response functions)
 - [ ] produce Garfield simulation output (Yichen)
 - [ ] convert Garfield output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
+- [ ] somehow handle the regions of differing pitch
 
 * Tests
 
