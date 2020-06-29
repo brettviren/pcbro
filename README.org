@@ -13,13 +13,10 @@ The development roadmap for this package is:
 - [X] a WCT "source" component that will provide this data as WCT tensors
 - [X] a WCT configuration to convert ~.bin~ to ~.npz~ files
 - [X] produce event displays to confirm decoder works
-
-After this is done, most work is outside the repo:
-
-- [ ] produce fake WCT "wires file" mostly to serve as channel map (save to ~wire-cell-data~)
+- [X] produce fake WCT "wires file" mostly to serve as channel map (save to ~wire-cell-data~)
+- [X] develop WCT configuration to run sigproc on ~.bin~ and save results to zero-padded ~.npz~ (with bogus use of PDSP field response functions)
 - [ ] produce Garfield simulation output (Yichen)
 - [ ] convert Garfield output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
-- [ ] develop WCT configuration to run sigproc on ~.bin~ and save results to zero-padded ~.npz~
 
 * Tests
 
@@ -57,9 +54,35 @@ directory and pcbro's ~cfg/~, eg:
   $ export WIRECELL_PATH=$PREFIX/share/wirecell:$HOME/dev/pcbro/cfg
 #+end_example
 
-** Use WCT to decode raw data and write Numpy arrays
+** Wires 
 
-A ~.bin~ file can be consumed to produce a ~.npz~ file with:
+PCB anode of course has strips but for sigproc we don't care about
+actual geometry and just need to gives conductor ordering.  PCBro has
+a WCT-like Python package which generates a "wire" file.
+
+
+#+begin_example
+  $ python -m venv venv
+  $ source venv/bin/activate
+
+  $ cd /path/to/wire-cell-toolkit/python
+  $ pip install -e .  
+  
+  $ cd /path/to/pcbro/python
+  $ pip install -e .
+
+  $ wirecell-pcbro gen-wires pcbro-wires.txt
+  $ wirecell-util convert-oneside-wires pcbro-wires.txt pcbro-wires.json.bz2
+#+end_example
+
+The resulting ~.json.bz2~ file should go in a directory listed in your
+~WIRECELL_PATH~.  A copy is committed in this repo at [[file:cfg/pcbro-wires.json.bz2][cfg/pcbro-wires.json.bz2]].
+
+** WCT decoding
+
+A PCB anode ~.bin~ file can be read by WCT, decoded and written to a
+Numpy ~.npz~ array file.  You can then plot the result with ~matplotlib~.
+For example:
 
 #+begin_example
   $ wire-cell -l stdout -L debug -l junk.log:debug \
@@ -74,11 +97,15 @@ A ~.bin~ file can be consumed to produce a ~.npz~ file with:
 
 [[file:trig31.png]]
 
-** Run WCT signal processing
+
+** WCT sigproc
+
+The raw ~.bin~ data can be read in, decoded, run through WCT signal
+processing and the result written to an Numpy ~.npz~ array file
 
 *WARNING* this is currently using a lot of bogus configuration ripped
 from PDSP and is surely wrong.  It just proves the mechanical parts
-are more or less working.
+are more or less working.  See [[Roadmap]]
 
 #+begin_example
   $ wire-cell -l stdout -L debug -l junk.log:debug \
