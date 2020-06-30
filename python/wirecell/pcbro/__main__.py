@@ -67,6 +67,32 @@ def gen_wires(output_file):
     open(output_file,"wb").write(text.encode('ascii'))
     
 
+
+@cli.command("plot-one")
+@click.option("-T", "--tag", default="gauss0",
+             help="Tag name")
+@click.option("-t", "--trigger", default=31,
+             help="Trigger number")
+@click.option("-a","--aspect", default=1.0,
+              help="Aspect ratio")
+@click.option("-o","--output",default="plot.pdf",
+              help="Output file")
+@click.argument("npzfile")
+def plot_one(tag, trigger, aspect, output, npzfile):
+    '''
+    Plot waveforms of a trigger from file
+    '''
+    import numpy
+    import matplotlib.pyplot as plt 
+    fp = numpy.load(npzfile)
+    a = fp[f'frame_{tag}_{trigger}']
+    # a = numpy.flip(a,0)
+    plt.imshow(a, aspect=aspect, interpolation=None)
+    c = plt.colorbar()
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+    plt.savefig(output, bbox_inches='tight')
+
 def main():
     cli(obj=dict())
 

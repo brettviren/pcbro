@@ -9,7 +9,7 @@ local g = import "pgraph.jsonnet";
 //   -c cli-bin2npz.jsonent [...]
 function(infile, outfile) {
 
-    local graph = pcbro.bintonpz(infile, outfile, "bin2npz"),
+    local graph = pcbro.bin_npz(infile, outfile, "bin2npz"),
     local app = {
         type: 'Pgrapher',
         data: {
