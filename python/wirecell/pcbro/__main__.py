@@ -35,20 +35,7 @@ def gen_wires(output_file):
     print("warning: using ideal wire spacing")
     lines = list()
     
-    plane=0                     # collection
-    # put collection strips pointing along Y-axis and just negative in X.
-    sx = ex = -0.1              # cm, and totally bogus
-    sy = -32*pitch
-    ey = +32*pitch
-    sz = ez = -32*pitch + 0.5*pitch
-    for iwire in range(0,64):
-        chan = iwire+1
-        l = f'{chan:3d} {plane:1d} {iwire:3d} {sx:8.2f} {sy:8.2f} {sz:8.2f} {ex:8.2f} {ey:8.2f} {ez:8.2f}'
-        lines.append(l)
-        sz += pitch
-        ez += pitch
-
-    plane=1                     # induction
+    plane=0                     # induction
     # put collection strips pointing along Y-axis and just negative in X.
     sx = ex = +0.1              # cm, and totally bogus
     sz = -32*pitch
@@ -61,9 +48,34 @@ def gen_wires(output_file):
         sy += pitch
         ey += pitch
         
+    plane=1                     # induction
+    # put collection strips pointing along Y-axis and just negative in X.
+    sx = ex = +0.1              # cm, and totally bogus
+    sz = -32*pitch
+    ez = +32*pitch
+    sy = ey = -32*pitch + 0.5*pitch
+    for iwire in range(64,128):
+        chan = 1000+iwire+1
+        l = f'{chan:3d} {plane:1d} {iwire:3d} {sx:8.2f} {sy:8.2f} {sz:8.2f} {ex:8.2f} {ey:8.2f} {ez:8.2f}'
+        lines.append(l)
+        sy += pitch
+        ey += pitch
+
+    plane=2                     # collection
+    # put collection strips pointing along Y-axis and just negative in X.
+    sx = ex = -0.1              # cm, and totally bogus
+    sy = -32*pitch
+    ey = +32*pitch
+    sz = ez = -32*pitch + 0.5*pitch
+    for iwire in range(0,64):
+        chan = iwire+1
+        l = f'{chan:3d} {plane:1d} {iwire:3d} {sx:8.2f} {sy:8.2f} {sz:8.2f} {ex:8.2f} {ey:8.2f} {ez:8.2f}'
+        lines.append(l)
+        sz += pitch
+        ez += pitch
+
     text = '\n'.join(lines)
     text += '\n'
-
     open(output_file,"wb").write(text.encode('ascii'))
     
 

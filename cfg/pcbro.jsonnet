@@ -64,7 +64,7 @@ local sp = sp_maker(params, tools);
         $.rawsource("input", infile, tag),
         $.tentoframe("tensor-to-frame", tensors=[$.tensor(tag)]),
         sp.make_sigproc(tools.anodes[0]),
-        $.npzsink("output", outfile, tags=["gauss0", "wiener0", "threshold0"]),
+        $.npzsink("output", outfile, false, tags=["gauss0", "wiener0", "threshold0"]),
         $.dumpframes("dumpframes")]),
 }
 
