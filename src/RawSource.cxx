@@ -116,7 +116,18 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
         m_cur = pcbro::make_trigger(block, m_cur, m_rd.end());
     }
     catch (const std::range_error& e) {
-        log->debug("RawSource: end of file");
+        log->debug("RawSource: after {} triggers end of file {}", m_ident, m_filenames[m_filenum-1]);
+
+        bool ok = init_file();
+        if (ok) {               // keep going
+            return this->operator()(ts);
+        }
+
+        m_eos = true;           // next time we return false
+        return true;
+    }
+    catch (const std::runtime_error& d) {
+        log->debug("RawSource: after {} triggers bad data in file {}", m_ident, m_filenames[m_filenum-1]);
 
         bool ok = init_file();
         if (ok) {               // keep going
@@ -128,7 +139,7 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
     }
 
     ++m_ident;
-    log->debug("RawSource: [{}]: #{}: {} ticks", m_tag, m_ident, block.rows());
+    log->trace("RawSource: [{}]: #{}: {} ticks", m_tag, m_ident, block.rows());
 
     // produce tensor set.
     Configuration set_md;
@@ -173,7 +184,7 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
 
         // log->trace("RawSource: col({})->row({}) {}", ec, out_ind, arr.row(out_ind).sum()/block.rows());
     }
-    log->debug("RawSource: total sum: {}", arr.sum());
+    log->trace("RawSource: total sum: {}", arr.sum());
 
     auto& wf_md = frame->metadata();
     wf_md["pad"] = 0;

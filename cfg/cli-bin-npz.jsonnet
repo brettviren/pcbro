@@ -7,6 +7,8 @@ local g = import "pgraph.jsonnet";
 //   --tla-str infile="file.bin" \
 //   --tla-str outfile="file.npz" \
 //   -c cli-bin2npz.jsonent [...]
+//
+// infile may also be an array
 function(infile, outfile) {
 
     local graph = pcbro.bin_npz(infile, outfile, "bin2npz"),

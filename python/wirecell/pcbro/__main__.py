@@ -98,8 +98,10 @@ def plot_one(tag, trigger, aspect, output, npzfile):
     import matplotlib.pyplot as plt 
     fp = numpy.load(npzfile)
     a = fp[f'frame_{tag}_{trigger}']
+    rows, cols = a.shape;
     # a = numpy.flip(a,0)
     plt.imshow(a, aspect=aspect, interpolation=None)
+    plt.plot((cols//2, cols//2), (0, rows-1), linewidth=0.1, color='red')
     c = plt.colorbar()
     plt.gca().invert_yaxis()
     plt.tight_layout()

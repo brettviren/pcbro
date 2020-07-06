@@ -93,10 +93,16 @@ For example:
   $ ipython --pylab
   In [1]: f = numpy.load("<file.npz>")
   In [2]: plt.imshow(f['frame_bin2npz_31'])
-  In [3]: plt.savefig("trig31.png")
+  In [3]: plt.savefig("raw-31.png")
 #+end_example
 
-[[file:trig31.png]]
+or
+
+#+begin_example
+  $ wirecell-pcbro plot-one -t 31 -a 0.2 -T bin2npz -o raw-31.png raw.npz
+#+end_example
+
+[[file:raw-31.png]]
 
 
 ** WCT sigproc
@@ -119,7 +125,60 @@ are more or less working.  See [[Roadmap]]
   In [3]: plt.savefig("trig31-gauss.png")
 #+end_example
 
-[[file:trig31-gauss.png]]
+or
+
+#+begin_example
+  $ wirecell-pcbro plot-one -t 31 -a 0.2 -T gauss0 -o sig-31.png sig.npz
+#+end_example
+
+
+[[file:sig-31.png]]
+
+
+  *N.B. the above uses ProtoDUNE-SP detector response functions and does not represent the ultimate quality.*
+
+
+** Multiple input files
+
+The ~PcbroRawSource~ may be configured with one or a sequence of input
+~.bin~ files and likewise so does the top-level "cli" Jsonnet.  With a
+little help from the shell you can pass multiple files via:
+
+#+begin_example
+  $ rm -f sig.npz
+  $ time wire-cell \
+    --tla-str outfile="sig.npz" \
+    --tla-code infile="[ $(printf '"%s",' /home/bv/work/pcbro/Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_1590484*.bin ) ]" \
+    -c cfg/cli-bin-sp-npz.jsonnet
+
+  ...
+  [15:14:29.460] D [ pcbro  ] RawSource: end of 29 files
+  [15:14:29.460] I [ timer  ] Timer: WireCell::SigProc::OmnibusSigProc : 45.555553 sec
+  [15:14:29.460] I [ timer  ] Timer: WireCell::Sio::NumpyFrameSaver : 4.5346904 sec
+  [15:14:29.460] I [ timer  ] Timer: pcbro::RawSource : 2.6408951 sec
+  [15:14:29.460] I [ timer  ] Timer: WireCell::Aux::TaggedTensorSetFrame : 0.27116203 sec
+  [15:14:29.460] I [ timer  ] Timer: WireCell::Gen::DumpFrames : 0.061627306 sec
+  [15:14:29.460] I [ timer  ] Timer: Total node execution : 53.06392828375101 sec
+
+  real	0m55.183s
+  user	0m52.199s
+  sys	0m1.873s
+
+  $ ls /home/bv/work/pcbro/Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_1590484*.bin|wc -l
+  29
+
+#+end_example
+
+** Quick and dirty hand scanner
+
+Using a PDF viewer that auto refreshes such as ~evince~ or ~atril~ you can
+make a super quick and dirty automated scanner:
+
+#+begin_example
+  $ evince junk.pdf &
+  $ for n in {0..200}; do wirecell-pcbro plot-one -t $n -a 0.2 -T gauss0 -o junk.pdf sig.npz; echo $n; done
+#+end_example
+
 
 * Install
 
