@@ -20,21 +20,24 @@ int main(int argc, char* argv[])
     // fixme, this shouldn't be needed to see debug level!
     spdlog::set_level(spdlog::level::debug); 
 
-    if (argc != 2) {
-        error("need a .bin file");
+    if (argc < 2) {
+        error("need at least one .bin file");
         return 0;
     }
     debug("starting");
     pcbro::RawSource rawsrc;
 
     auto cfg = rawsrc.default_configuration();
-    cfg["filename"] = argv[1];
+    cfg["filename"] = Json::arrayValue;
+    for (int ind=1; ind<argc; ++ind) {
+        cfg["filename"].append(argv[ind]);
+    }
     cfg["tag"] = "test-tag";
     debug("cfg: {}", cfg);
     rawsrc.configure(cfg);
     
-    WireCell::ITensorSet::pointer ts;
     while (true) {
+        WireCell::ITensorSet::pointer ts = nullptr;
         bool ok = rawsrc(ts);
         if (!ok) {
             debug("RawSource is empty");

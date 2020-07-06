@@ -18,6 +18,7 @@ WIRECELL_FACTORY(PcbroRawSource, pcbro::RawSource,
 using namespace WireCell;
 
 pcbro::RawSource::RawSource()
+    : m_filenum{0}
 {
 }
 
@@ -29,7 +30,7 @@ pcbro::RawSource::~RawSource()
 WireCell::Configuration pcbro::RawSource::default_configuration() const
 {
     WireCell::Configuration cfg;       
-    cfg["filename"] = "";
+    cfg["filename"] = "";       // can also accept an array of files
     cfg["tag"] = "";
     return cfg;
 }
@@ -42,24 +43,63 @@ void pcbro::RawSource::configure(const WireCell::Configuration& cfg)
     m_tag = get<std::string>(cfg, "tag", "");
     log->debug("RawSource: using tag: \"{}\"", m_tag);
 
-    std::string fname = get<std::string>(cfg, "filename", "");
-    if (fname.empty()) {
+    auto jfn = cfg["filename"];
+    if (jfn.empty()) {
         std::runtime_error("pcbro::RawSource: empty input filename");
     }
 
-    if(fname.substr(fname.find_last_of(".") + 1) != "bin") {
-        std::runtime_error("pcbro::RawSource: currently only supports .bin files");
+    m_filenames.clear();
+    if (jfn.isString()) {
+        m_filenames.push_back(jfn.asString());
+    }
+    else {
+        for (auto jone : jfn) {
+            m_filenames.push_back(jone.asString());
+        }
     }
 
+    for (auto fname : m_filenames) {
+        if(fname.substr(fname.find_last_of(".") + 1) != "bin") {
+            std::runtime_error("pcbro::RawSource: currently only supports .bin files, not: " + fname);
+        }
+        std::fstream fstr(fname, std::ios_base::in | std::ios_base::binary);
+        if (!fstr.is_open()) {
+            std::runtime_error("pcbro::RawSource: failed to open file: " + fname);
+        }
+        log->debug("RawSource: using file: {}", fname);
+    }
+    m_filenum=0;
+    bool ok = init_file();
+    if (! ok) {
+        std::runtime_error("pcbro::RawSource: failed to initialze first file");
+    }
+}
+
+bool pcbro::RawSource::init_file()
+{
+    auto log = WireCell::Log::logger("pcbro");
+
+    if (m_filenum >= m_filenames.size()) {
+        log->debug("RawSource: end of {} files", m_filenames.size());
+        return false;
+    }
+
+    std::string fname = m_filenames[m_filenum];
     std::fstream fstr(fname, std::ios_base::in | std::ios_base::binary);
     if (!fstr.is_open()) {
         std::runtime_error("pcbro::RawSource: failed to open file: " + fname);
     }
 
+    m_fpd = pcbro::parse_file_path(fname);
+
     // slurp!
     m_rd = pcbro::read_raw_data(fstr);
     m_cur = m_rd.begin();
+    log->debug("RawSource: open file {}", m_filenames[m_filenum]);
+    ++m_filenum;
+    return true;
 }
+
 
 bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
 {
@@ -77,6 +117,12 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
     }
     catch (const std::range_error& e) {
         log->debug("RawSource: end of file");
+
+        bool ok = init_file();
+        if (ok) {               // keep going
+            return this->operator()(ts);
+        }
+
         m_eos = true;           // next time we return false
         return true;
     }
@@ -87,9 +133,11 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
     // produce tensor set.
     Configuration set_md;
     set_md["ident"] = m_ident;
-    set_md["time"] = m_ident*units::s; // fixme: any meaningful value here?
+    set_md["time"] = m_ident*units::ms; // fixme: any meaningful value here?
     set_md["tick"] = m_tick;
     set_md["tags"][0] = m_tag;
+    set_md["runTime"] = Json::Value::Int64(m_fpd.seconds);
+    set_md["runTime_ms"] = m_fpd.msecs;
 
     ITensor::vector* itv = new ITensor::vector;
 

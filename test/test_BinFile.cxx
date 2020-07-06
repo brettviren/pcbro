@@ -18,9 +18,26 @@ int test_read(std::istream& stream)
 int test_package(std::istream& stream)
 {
     pcbro::raw_data_t rd = pcbro::read_raw_data(stream);
-    pcbro::raw_data_itr end = pcbro::seek_package(rd.begin(), rd.end());
-    assert(end != rd.end());
-    info("package: size: {}", std::distance(rd.begin(), end));
+    pcbro::raw_data_itr beg = rd.begin();
+    int npkg = 0;
+    while (true) {
+        pcbro::raw_data_itr end = pcbro::seek_package(beg, rd.end());
+            
+        info("package {:2d}: size: {}", npkg, std::distance(beg, end));
+        int count = 0;
+        auto it = beg;
+        while (count < 10) {
+            const uint16_t s = *it;
+            info("{:2d} 0x{:04x} {:d}", count, s, s);
+            ++it;
+            ++count;
+        }
+        ++npkg;
+        if (end == rd.end()) {
+            break;
+        }
+        beg = end;
+    }
     return 0;
 }
 
@@ -70,6 +87,11 @@ int main(int argc, char* argv[])
     }
     WireCell::Log::add_stdout(true, "debug");
     std::string test=argv[1];
+    auto fpd = pcbro::parse_file_path(argv[2]);
+    info("fpd: {} {} {} {}.{:03d} {}", 
+         fpd.wibnn, fpd.stepnn, fpd.fembnn,
+         fpd.seconds, fpd.msecs, fpd.path);
+
     std::ifstream fstr(argv[2]);
     if (!fstr) {
         throw std::runtime_error("bad file");

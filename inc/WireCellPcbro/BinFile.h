@@ -5,7 +5,10 @@
 
 #include <fstream>
 // #include <iostream>             // testing
+
 #include <vector>
+/// not until GCC 8.1
+// #include <filesystem>
 
 namespace pcbro {
 
@@ -31,6 +34,39 @@ namespace pcbro {
     // strips.  Electronic channel numbers are not exposed.
     using adc_t = int16_t;
     using block128_t = Eigen::Array<adc_t, Eigen::Dynamic, 128>;
+
+
+    // Parse a filename for a .bin file path
+    // Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_159048405892.bin
+    struct FilePathData {
+        std::string path;
+        std::string wibnn, stepnn, fembnn;
+        time_t seconds;
+        int msecs;
+    };
+        
+    FilePathData parse_file_path(std::string path) {
+        // using fs = std::filesystem;
+        // fs::path p = path;
+        // auto path = p.stem().string();
+        auto slash = path.find_last_of("/");
+        if (slash != path.npos) {
+            path = path.substr(slash+1);
+        }
+        auto dot = path.find_last_of(".");
+        path = path.substr(0, dot);
+        
+        FilePathData fpd{path};
+        // 0         1         2         3
+        // 0123456789012345678901234567890123456789
+        // WIB00step18_FEMB_B8_159048405892.bin
+        fpd.wibnn = path.substr(3,2);
+        fpd.stepnn = path.substr(9,2);
+        fpd.fembnn = path.substr(17,2);
+        fpd.seconds = atol(path.substr(20,10).c_str());
+        fpd.msecs = 10*atoi(path.substr(30,2).c_str());
+        return fpd;
+    }
 
 
     /// Slurp in all raw data from a stream.

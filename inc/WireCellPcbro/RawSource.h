@@ -27,13 +27,21 @@ namespace pcbro {
 
     private:
 
+        // info about current .bin file
         pcbro::raw_data_t m_rd;
         pcbro::raw_data_itr m_cur;
+        pcbro::FilePathData m_fpd;
+
+        // We can handle one or many files.
+        std::vector<std::string> m_filenames;
+        size_t m_filenum;
 
         bool m_eos{false};
         int m_ident{0};
         double m_tick{0.5*WireCell::units::us};
         std::string m_tag{""};
+
+        bool init_file();
     };
 
 }
