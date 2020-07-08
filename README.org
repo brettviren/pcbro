@@ -182,6 +182,20 @@ make a super quick and dirty automated scanner:
   $ for n in {0..200}; do wirecell-pcbro plot-one -t $n -a 0.2 -T gauss0 -o junk.pdf sig.npz; echo $n; done
 #+end_example
 
+** Less quick and dirty
+
+Process many ~.bin~ into a ~.npz~ file and then make a reduced ~.npz~ file
+by applying a threshold on activity.  The activity is calculated by
+subtracting a per-channel median and then summing all values above a
+minimum (def=5) and if the sum is larger than the threshold
+(default=5000) then save the array to the output ~.npz~.  You can then
+make a multi-page PDF.
+
+#+begin_example
+  $ rm -f raw-muons.npz; wirecell-pcbro activity raw.npz raw-muons.npz
+  $ rm -f raw-muons.pdf; wirecell-pcbro plot-many -a 0.2 -o raw-muons.pdf raw-muons.npz
+#+end_example
+
 
 * Install
 
