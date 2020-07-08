@@ -15,9 +15,12 @@ The development roadmap for this package is:
 - [X] produce event displays to confirm decoder works
 - [X] produce fake WCT "wires file" mostly to serve as channel map (save to ~wire-cell-data~)
 - [X] develop WCT configuration to run sigproc on ~.bin~ and save results to zero-padded ~.npz~ (with bogus use of PDSP field response functions)
-- [ ] produce Garfield simulation output (Yichen)
+- [ ] produce Garfield (or other?) simulation output (Yichen)
 - [ ] convert Garfield output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
 - [ ] somehow handle the regions of differing pitch
+- [ ] understand and fix the apparent wrap-around in SP data ([[https://github.com/brettviren/pcbro/issues/1][issue 1]])
+- [ ] job configuration to save ADC-level and SP-level data to Magnify files. ([[https://github.com/brettviren/pcbro/issues/2][issue 2]])
+- [ ] data reduction.  This needs some serious thought and is mostly in the core of WCT.
 
 * Tests
 
