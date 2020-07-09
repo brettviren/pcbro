@@ -7,10 +7,10 @@ local g = import "pgraph.jsonnet";
 //   --tla-str infile="file.bin" \
 //   --tla-str outfile="file.npz" \
 //   -c cli-bin2npz.jsonent [...]
-function(infile, outfile) {
+function(infile, outfile, tag="", nplanes=3) {
 
 
-    local graph = pcbro.bin_sp_npz(infile, outfile),
+    local graph = pcbro.bin_sp_npz(infile, outfile, tag, nplanes),
 
     local app = {
         type: 'Pgrapher',
