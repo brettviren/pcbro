@@ -15,12 +15,13 @@ local sp = sp_maker(params, tools);
 
     // Return a raw source configuration node to read in a .bin file
     // and produce tensors with given tag.
-    rawsource(name, filename, tag="") :: g.pnode({
+    rawsource(name, filename, tag="", nplanes=3) :: g.pnode({
         type: 'PcbroRawSource',
         name: name,
         data: {
             filename: filename,
-            tag: tag
+            tag: tag,
+            dupind: nplanes == 3,
         }}, nin=0, nout=1),
 
     // Return a tensor (sub)configuration
@@ -52,16 +53,16 @@ local sp = sp_maker(params, tools);
     }, nin=1, nout=0),
 
     // Return graph to convert from pcbro .bin to .npz
-    bin_npz(infile, outfile, tag="") ::
-    g.pipeline([$.rawsource("input", infile, tag),
+    bin_npz(infile, outfile, tag="", nplanes=3) ::
+    g.pipeline([$.rawsource("input", infile, tag, nplanes),
                 $.tentoframe("tensor-to-frame", tensors=[$.tensor(tag)]),
                 $.npzsink("output", outfile, tags=[tag]),
                 $.dumpframes("dumpframes")]),
 
 
-    bin_sp_npz(infile, outfile, tag="") ::
+    bin_sp_npz(infile, outfile, tag="", nplanes=3) ::
     g.pipeline([
-        $.rawsource("input", infile, tag),
+        $.rawsource("input", infile, tag, nplanes),
         $.tentoframe("tensor-to-frame", tensors=[$.tensor(tag)]),
         sp.make_sigproc(tools.anodes[0]),
         $.npzsink("output", outfile, false, tags=["gauss0", "wiener0", "threshold0"]),

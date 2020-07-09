@@ -9,9 +9,9 @@ local g = import "pgraph.jsonnet";
 //   -c cli-bin2npz.jsonent [...]
 //
 // infile may also be an array
-function(infile, outfile) {
+function(infile, outfile, nplanes=3) {
 
-    local graph = pcbro.bin_npz(infile, outfile, "bin2npz"),
+    local graph = pcbro.bin_npz(infile, outfile, "bin2npz", nplanes),
     local app = {
         type: 'Pgrapher',
         data: {

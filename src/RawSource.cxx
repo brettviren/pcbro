@@ -32,6 +32,7 @@ WireCell::Configuration pcbro::RawSource::default_configuration() const
     WireCell::Configuration cfg;       
     cfg["filename"] = "";       // can also accept an array of files
     cfg["tag"] = "";
+    cfg["dupind"] = false;      // if true, DUPlicate INDuction planes
     return cfg;
 }
 
@@ -39,6 +40,8 @@ WireCell::Configuration pcbro::RawSource::default_configuration() const
 void pcbro::RawSource::configure(const WireCell::Configuration& cfg)
 {
     auto log = WireCell::Log::logger("pcbro");
+
+    m_dupind = get<bool>(cfg, "dupind", m_dupind);
 
     m_tag = get<std::string>(cfg, "tag", "");
     log->debug("RawSource: using tag: \"{}\"", m_tag);
@@ -116,24 +119,22 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
         m_cur = pcbro::make_trigger(block, m_cur, m_rd.end());
     }
     catch (const std::range_error& e) {
-        log->debug("RawSource: after {} triggers end of file {}", m_ident, m_filenames[m_filenum-1]);
-
+        log->debug("RawSource: after {} triggers end of file {}",
+                   m_ident, m_filenames[m_filenum-1]);
         bool ok = init_file();
         if (ok) {               // keep going
             return this->operator()(ts);
         }
-
         m_eos = true;           // next time we return false
         return true;
     }
     catch (const std::runtime_error& d) {
-        log->debug("RawSource: after {} triggers bad data in file {}", m_ident, m_filenames[m_filenum-1]);
-
+        log->debug("RawSource: after {} triggers bad data in file {}",
+                   m_ident, m_filenames[m_filenum-1]);
         bool ok = init_file();
         if (ok) {               // keep going
             return this->operator()(ts);
         }
-
         m_eos = true;           // next time we return false
         return true;
     }
@@ -170,20 +171,30 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
 
 
     const size_t nticks = block.rows(); // output is the TRANSPOSE
-    const size_t nchans = block.cols(); // of the input block!
+    size_t nchans = block.cols(); // of the input block!
+    int nplanes = 2;
+    if (m_dupind) {
+        nplanes = 3;
+        nchans += nchans/2;
+    } // half again more for the extra plane
     // WCT frame tensor wants float type, rows:chans, cols:ticks so
     // transpose and cast.
     const std::vector<size_t> shape = {nchans, nticks};
     Aux::SimpleTensor<float>* frame = new Aux::SimpleTensor<float>(shape);
     Eigen::Map<Eigen::ArrayXXf> arr((float*) frame->data(), nchans, nticks);
+    // First real data.
     for (size_t ec = 0; ec < 128; ++ec) {
         size_t out_ind = chanPhy[ec]-1;
         for (int ind=0; ind<block.rows(); ++ind) {
             arr(out_ind, ind) = (float)block(ind, ec);
         }
-
-        // log->trace("RawSource: col({})->row({}) {}", ec, out_ind, arr.row(out_ind).sum()/block.rows());
     }
+    if (m_dupind) {
+        for (size_t pch=64; pch<128; ++pch) {
+            arr.row(pch+64) = arr.row(pch);
+        }
+    }
+
     log->trace("RawSource: total sum: {}", arr.sum());
 
     auto& wf_md = frame->metadata();
@@ -191,11 +202,12 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
     wf_md["tbin"] = 0.0;
     wf_md["type"] = "waveform";
     wf_md["tag"] = m_tag;
+    wf_md["nplanes"] = nplanes;
     itv->push_back(ITensor::pointer(frame));
     
-    Aux::SimpleTensor<int>* cht = new Aux::SimpleTensor<int>({128});
+    Aux::SimpleTensor<int>* cht = new Aux::SimpleTensor<int>({nchans});
     int* chdat = reinterpret_cast<int*>(cht->store().data());
-    std::iota(chdat, chdat+128, 1);
+    std::iota(chdat, chdat+nchans, 1);
     auto& ch_md = cht->metadata();
     ch_md["type"] = "channels";
     ch_md["tag"] = m_tag;

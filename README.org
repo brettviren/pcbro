@@ -1,12 +1,29 @@
 #+title: pcbro: Wire-Cell PCB Anode Readout Package
 
-This WCT user package provides some Wire-Cell Toolkit components and
-support code for the PCB anode readout (pcbro) R&D and specifically
-its use in the 50L test detector.
+This WCT user package provides some Wire-Cell Toolkit components and support code for the PCB anode readout (pcbro) R&D and specifically its use in the 50L test detector.
+
+* Install
+
+This package is a Wire-Cell Toolkut User Package (WCUP) and installs in "the normal way".  It requires an installation of WCT
+
+#+begin_example
+  $ ./wcb configure --prefix=/path/to/install \
+        --with-wct=$HOME/opt/wct \
+        [...maybe other --with-* flags...]
+  $ ./wcb --notests install
+  $ ./wcb --alltests
+#+end_example
+
+Note, the installed ~pcbro~ library must be added to ~LD_LIBRARY_PATH~ and you may want to add ~pcbro~ cfg area.  Assuming these variables have already been configured for WCT itself:
+
+#+begin_example
+  $ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/install/lib
+  $ WIRECELL_PATH=$WIRECELL_PATH:/path/to/pcbro/cfg
+#+end_example
 
 * Roadmap
 
-The development roadmap for this package is:
+The development roadmap for this package is roughly:
 
 - [X] generate initial package skeleton with [[https://github.com/brettviren/moo][moo]].
 - [X] raw data decoder for the ~.bin~ files produced by the 50L DAQ.
@@ -107,15 +124,13 @@ or
 
 [[file:raw-31.png]]
 
+*N.B.: by default the induction plane data is duplicated in order to match WCT's expectation of 3 planes and to allow testing of different induction response functions.*
 
 ** WCT sigproc
 
-The raw ~.bin~ data can be read in, decoded, run through WCT signal
-processing and the result written to an Numpy ~.npz~ array file
+The raw ~.bin~ data can be read in, decoded, run through WCT signal processing and the result written to an Numpy ~.npz~ array file
 
-*WARNING* this is currently using a lot of bogus configuration ripped
-from PDSP and is surely wrong.  It just proves the mechanical parts
-are more or less working.  See [[Roadmap]]
+*WARNING* this is currently using a lot of bogus configuration ripped from PDSP and is surely wrong.  It just proves the mechanical parts are more or less working.  See [[Roadmap]]
 
 #+begin_example
   $ wire-cell -l stdout -L debug -l junk.log:debug \
@@ -138,14 +153,12 @@ or
 [[file:sig-31.png]]
 
 
-  *N.B. the above uses ProtoDUNE-SP detector response functions and does not represent the ultimate quality.*
+  *N.B. the above uses ProtoDUNE-SP detector response functions and does not represent the ultimate quality.* It also *artificially duplicates* the data from the induction channels 65-128 (plane ident 0) into channels 129-192 (plane ident 1) in order to apply the two different sets of *PDSP induction response functions*
 
 
 ** Multiple input files
 
-The ~PcbroRawSource~ may be configured with one or a sequence of input
-~.bin~ files and likewise so does the top-level "cli" Jsonnet.  With a
-little help from the shell you can pass multiple files via:
+The ~PcbroRawSource~ may be configured with one or a sequence of input ~.bin~ files and likewise so does the top-level "cli" Jsonnet.  With a little help from the shell you can pass multiple files via:
 
 #+begin_example
   $ rm -f sig.npz
@@ -174,8 +187,7 @@ little help from the shell you can pass multiple files via:
 
 ** Quick and dirty hand scanner
 
-Using a PDF viewer that auto refreshes such as ~evince~ or ~atril~ you can
-make a super quick and dirty automated scanner:
+Using a PDF viewer that auto refreshes such as ~evince~ or ~atril~ you can make a super quick and dirty automated scanner:
 
 #+begin_example
   $ evince junk.pdf &
@@ -184,12 +196,7 @@ make a super quick and dirty automated scanner:
 
 ** Less quick and dirty
 
-Process many ~.bin~ into a ~.npz~ file and then make a reduced ~.npz~ file
-by applying a threshold on activity.  The activity is calculated by
-subtracting a per-channel median and then summing all values above a
-minimum (def=5) and if the sum is larger than the threshold
-(default=5000) then save the array to the output ~.npz~.  You can then
-make a multi-page PDF.
+Process many ~.bin~ into a ~.npz~ file and then make a reduced ~.npz~ file by applying a threshold on activity.  The activity is calculated by subtracting a per-channel median and then summing all values above a minimum (def=5) and if the sum is larger than the threshold (default=5000) then save the array to the output ~.npz~.  You can then make a multi-page PDF.
 
 #+begin_example
   $ rm -f raw-muons.npz; wirecell-pcbro activity raw.npz raw-muons.npz
@@ -197,16 +204,4 @@ make a multi-page PDF.
 #+end_example
 
 
-* Install
-
-This package is not yet ready for use but it may be built against a
-WCT installation doing something like:
-
-#+begin_example
-  $ ./wcb configure --prefix=/path/to/install \
-        --with-wct=$HOME/opt/wct \
-        [...maybe other --with-* flags...]
-  $ ./wcb --notests install
-  $ ./wcb --alltests
-#+end_example
 

@@ -36,7 +36,7 @@ namespace pcbro {
         std::vector<std::string> m_filenames;
         size_t m_filenum;
 
-        bool m_eos{false};
+        bool m_eos{false}, m_dupind{false};
         int m_ident{0};
         double m_tick{0.5*WireCell::units::us};
         std::string m_tag{""};
