@@ -32,12 +32,43 @@ The development roadmap for this package is roughly:
 - [X] produce event displays to confirm decoder works
 - [X] produce fake WCT "wires file" mostly to serve as channel map (save to ~wire-cell-data~)
 - [X] develop WCT configuration to run sigproc on ~.bin~ and save results to zero-padded ~.npz~ (with bogus use of PDSP field response functions)
-- [ ] produce Garfield (or other?) simulation output (Yichen)
-- [ ] convert Garfield output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
-- [ ] somehow handle the regions of differing pitch
+- [ ] progress though field roadmap (below)
+
 - [ ] understand and fix the apparent wrap-around in SP data ([[https://github.com/brettviren/pcbro/issues/1][issue 1]])
 - [ ] job configuration to save ADC-level and SP-level data to Magnify files. ([[https://github.com/brettviren/pcbro/issues/2][issue 2]])
 - [ ] data reduction.  This needs some serious thought and is mostly in the core of WCT.
+
+** Field Roadmap
+
+The PCB poses a greater need for a true 3D field response model than
+do wires.  This roadmap gives a phased approach to get closer to the
+ideal.
+
+*** 2D response + 2D WCT
+
+Quick hack to get something likely better than using PDSP response.
+
+- [X] calculate 2D fields for a special slice through hole diameters and assuming one strip universe.  This can use the "many wire" trick and Garfield.
+- [ ] convert one-strip output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
+- [ ] calculate 2D fields for a special slice through hole diameters and assuming multiple strips in the universe.  This may need the "many wire" trick with Garfield++ or neBEM with Garfield++.
+- [ ] convert multi-strip output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
+
+*** 3D fields + 2D WCT sim+sigproc
+
+Uses existing WCT unchanged.
+
+- [ ] calculate 3D fields with realistic hole pattern
+- [ ] calculate response functions for paths starting on a square grid based on the usual 6 impact positions.  In one dimension/plane these span impacts and the other these span "slices" across the strip
+- [ ] for each plane, marginalize over the slice dimension to produce 2D response functions that may be used in current WCT simulation and sigproc
+
+
+*** 3D fields + new 3D WCT sim
+
+This has two possible branches of development
+
+- [ ] develop full 3D simulation as a conceptual extension to the convolution technique used in current 2D WCT (this will likely need GPU acceleration so consider how to do this in PPS-manner)
+- [ ] develop full 3D simulation as an MC using Garfield++ (concerns: too slow? not GPU'able?)
+
 
 * Tests
 
