@@ -58,16 +58,17 @@ Quick hack to get something likely better than using PDSP response.
 Uses existing WCT unchanged.
 
 - [ ] calculate 3D fields with realistic hole pattern
-- [ ] calculate response functions for paths starting on a square grid based on the usual 6 impact positions.  In one dimension/plane these span impacts and the other these span "slices" across the strip
-- [ ] for each plane, marginalize over the slice dimension to produce 2D response functions that may be used in current WCT simulation and sigproc
+- [ ] calculate response functions for paths starting on a square grid based on the usual 6 impact positions.  In one dimension/plane these span impacts and the other these span "slices" across the strip.  This tries to exploit the orthogonal symmetry of the PCB anode.  In general, (eg with wire planes) we need one set of paths per plane.
+- [ ] for each plane, marginalize the response functions over the slice dimension to produce 2D response functions that may be used in current WCT simulation and sigproc
 
 
 *** 3D fields + new 3D WCT sim
 
 This has two possible branches of development
 
-- [ ] develop full 3D simulation as a conceptual extension to the convolution technique used in current 2D WCT (this will likely need GPU acceleration so consider how to do this in PPS-manner)
-- [ ] develop full 3D simulation as an MC using Garfield++ (concerns: too slow? not GPU'able?)
+- [ ] develop full 3D simulation as a conceptual extension to the convolution technique used in current 2D WCT.  This will be very memory and computationally expensive.  We should consider the need for GPU (not merely as an optimization) but retain ability to run on CPU.  This may be something for CCE-PPS to work on.  I expect the best first step is a prototype using PyTorch.
+
+- [ ] develop full 3D simulation as an MC using Garfield++.  Some concerns: too slow? not GPU'able? requires us to get deeper Garfield++ experience.
 
 
 * Tests
