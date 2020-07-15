@@ -340,9 +340,8 @@ class Sipem(object):
         assert(len(sips) == 1)
         srs = sips[0].srs
         res = list()
-        for islice, sr in enumerate(srs): # per slice
-            if not islice in slices:
-                continue
+        for islice in slices:
+            sr = srs[islice]
             for span in sr.ranges:
                 r = self.ripem.responses(plane, sr.rip, span)
                 if len(r.shape) != 2:
@@ -353,7 +352,7 @@ class Sipem(object):
                 res.append(r)
         res = numpy.asarray(res)
         res = res.sum(axis=0)
-        res /= len(srs)
+        res /= len(slices)
         return res
     
     def asarray(self, plane, slices=[0,1]):
