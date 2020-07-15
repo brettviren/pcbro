@@ -2,6 +2,7 @@
 Main CLI to moo
 '''
 import os
+import os.path as osp
 import sys
 import json
 import click
@@ -13,6 +14,41 @@ def cli(ctx):
     wirecell-pcbro command line interface
     '''
     ctx.ensure_object(dict)
+
+@cli.command("convert-garfield")
+@click.argument("garfield-fileset")
+@click.argument("wirecell-field-response-file")
+def convert_garfield(garfield_fileset, wirecell_field_response_file):
+    '''
+    Produce a WCT field file from tarfile of Garfield output text files.
+
+    See also same subcommand from wirecell-sigproc
+    '''
+    import wirecell.pcbro.garfield as pcbgf
+    pcbgf.load(garfield_fileset)    
+
+@cli.command("convert-garfield-one")
+@click.option("-o","--output",default=None, help="Output .npz file")
+@click.argument("datfile")
+def convert_garfield_one(output, datfile):
+    '''
+    Convert one Garfield .dat file to a .npz file
+    '''
+    import wirecell.pcbro.garfield as pcbgf
+    if not output:
+        output = os.path.splitext(os.path.basename(datfile))[0] + ".npz"
+    pcbgf.dat2npz(datfile, output)    
+
+@cli.command("plot-garfield")
+@click.option("-o","--output", default="garfield-plots.pdf", help="Output PDF file")
+@click.argument("source")
+def print_garfield(output, source):
+    import wirecell.pcbro.garfield as pcbgf
+    if osp.splitext(source) in ['.tar', '.tgz']:
+        source = pcbgf.tar_source(source)
+    elif osp.isdir(source):
+        source = pcbgf.dir_source(source, ['ind'])
+    pcbgf.plots(source, output)
 
 @cli.command("gen-wires")
 @click.argument("output-file")
