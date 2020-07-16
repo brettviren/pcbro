@@ -5,13 +5,13 @@ local g = import "pgraph.jsonnet";
 // This can be used with TLA from the command line like:
 // wire-cell \
 //   --tla-str infile="file.bin" \
-//   --tla-str outfile="file.npz" \
-//   -c cli-bin2npz.jsonent [...]
-function(infile, outfile, tag="", nplanes=3) {
+//   --tla-str outfile="file.root" \
+//   -c cli-bin-magraw.jsonent [...]
+//
+// infile may also be an array
+function(infile, outfile, nplanes=3) {
 
-
-    local graph = pcbro.bin_sp_npz(infile, outfile, tag, nplanes),
-
+    local graph = pcbro.bin_mag(infile, outfile, "orig0", nplanes),
     local app = {
         type: 'Pgrapher',
         data: {
@@ -21,10 +21,9 @@ function(infile, outfile, tag="", nplanes=3) {
     local cmdline = {
         type: "wire-cell",
         data: {
-            plugins: pcbro.plugins + ["WireCellApps", "WireCellPgraph"],
+            plugins: pcbro.plugins + ["WireCellApps", "WireCellPgraph", "WireCellRoot"],
             apps: ["Pgrapher"],
         }
     },
     seq: [cmdline] + g.uses(graph) + [app],
 }.seq
-
