@@ -11,11 +11,11 @@ col|ind is collection or induction
 
 '''
 import os.path as osp
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from dataclasses import dataclass
 from typing import List, Dict
 import numpy
-
+from wirecell import units
 #fixme: this cross-package import indicates we should refactor.
 import wirecell.sigproc.garfield as wctgf
 
@@ -130,7 +130,12 @@ class Ripem(object):
         riplane = self.plane[plane]
         if isinstance(radius, float):
             radius = "%0.1f" % radius
-        rip = riplane.rips[radius]
+        try:
+            rip = riplane.rips[radius]
+        except KeyError:
+            keys = list(riplane.rips.keys())
+            print(f'radius:{radius} plane:{plane}, keys:{keys}')
+            raise
         assert(len(rip.resps)>0)
         res = list()
         for rr in rip.resps:
@@ -144,6 +149,7 @@ class Ripem(object):
         '''
         for filename, text in source:
             self.load_file(filename, text)
+
     def load_file(self, filename, text=None):
         '''Load one garfield file.  If text is not given, read file.
 
@@ -234,43 +240,87 @@ class Strip:
     dslice: float
     sips: List[Sip]             # ordered list of strip impact positions.
 
-def sip_ind_strip0():
-    slice_1 = [(1.0, 2.5), (-2.5, -1.0)]
-    slice_2 = [(1.0, 4.0)]      # flipped
-    ips = [0.5*i for i in range(6)]
-    return Strip(0, 2.5, 
-                 [Sip(ip, [Siprip(    ip, 0.0, +1, slice_1),
-                           Siprip(2.5-ip, 2.5, -1, slice_2)]) for ip in ips])
-        
-def sip_ind_stripp(n):
-    assert n>0
-    d = (n-1)*5.0
-    slice_1 = [(-4.0-d, -2.5-d), (-7.5-d, -6.0-d)]
-    slice_2 = [(6.0+d, 9.0+d)]  # flipped
-    ips = [0.5*i for i in range(6)]    
-    return Strip(n, 2.5,
-                 [Sip(ip, [Siprip(    ip, 0.0, +1, slice_1),
-                           Siprip(2.5-ip, 2.5, -1, slice_2)]) for ip in ips])
 
-def sip_ind_stripm(n):
-    assert n>0
-    d = (n-1)*5.0
-    slice_1 = [(2.5+d,4.0+d),(6.0+d, 7.5+d)]
-    slice_2 = [(-4.0-d, -1.0-d)] # flipped
-    ips = [0.5*i for i in range(6)]    
-    return Strip(-n, 2.5,
-                 [Sip(ip, [Siprip(    ip, 0.0, +1, slice_1),
-                           Siprip(2.5-ip, 2.5, -1, slice_2)]) for ip in ips])
+def sign(x): return -1 if x < 0 else +1
+
+def xxx_strips(ranges, slice_size, strips_data):
+    strips = list()
+    for istrip, snum in enumerate(range(-5,6)):
+        strip_data = strips_data[istrip]
+        slc0 = strip_data.slices[0]
+        slc1 = strip_data.slices[1]
+        sips = list()
+        for isip in range(6):
+            isip0 = slc0.sips[isip]
+            isip1 = slc1.sips[isip]
+
+            # sign of the radial impact position (above/below center)
+            s0 = 1
+            r0 = isip0.rip
+            if r0 < 0:
+                s0 = -1
+                r0 *= -1
+
+            s1 = 1
+            r1 = isip1.rip
+            if r1 < 0:
+                s1 = -1
+                r1 *= -1
+
+            # signed distance from strip0 center to hole center
+            d0 = snum*5.0 + isip0.cen
+            d1 = snum*5.0 + isip1.cen
+
+            # the strip0 integration ranges translated to stripN
+            ranges0 = ranges[0] - d0
+            ranges1 = ranges[1] - d1
+
+            # We only have data for "postive" radius so invert if rip
+            # is negative.
+            if s0 < 0:
+                ranges0 *= -1
+                ranges0 = numpy.flip(ranges0, axis=1)
+            if s1 < 0:
+                ranges1 *= -1
+                ranges1 = numpy.flip(ranges1, axis=1)
+
+            s = Sip(isip*0.5,
+                    [Siprip(r0, isip0.cen, s0, ranges0),
+                     Siprip(r1, isip1.cen, s1, ranges1)])
+            sips.append(s)
+        strips.append(Strip(snum, slice_size, sips))
+    return strips
+
+sip_col_slice = 2.5
+sip_ind_slice = 3.3/2.0
+
+def col_strips():
+    from . import holes
+    plane_data = holes.planes["col"]
+    ranges = [                  # per slice, strip 0
+        numpy.asarray([(-2.5, -1.8), (0.2, 1.5)]),
+        numpy.asarray([(-1.5, -0.2), (1.8, 2.5)]),
+    ]
+    return xxx_strips(ranges, sip_col_slice,
+                      [plane_data.strips[snum%2] for snum in range(-5,6)])
+
+def ind_strips():
+    from . import holes
+    plane_data = holes.planes["ind"]
+    ranges = [                  # per slice, strip 0
+        numpy.asarray([(-2.5, -1.0), (1.0, 2.5)]),
+        numpy.asarray([(-1.5, -0.0), (0.0, 1.5)]),
+    ]
+    return xxx_strips(ranges, sip_ind_slice,
+                      [plane_data.strips[0] for snum in range(-5,6)])
+
     
-def sip_ind(sn):
-    if sn > 0: 
-        return sip_ind_stripp(sn)
-    if sn < 0:
-        return sip_ind_stripm(-sn)
-    return sip_ind_strip0()
 
 def draw_strip(strip):
     import matplotlib.pyplot as plt
+    import pylab
+    pylab.subplot(aspect='equal');
+
     snum = strip.number
     scenter = snum*5
     strip_x = abs(snum)*8
@@ -292,15 +342,15 @@ def draw_strip(strip):
             cir_y = sr.cen + scenter
             cir_x = slc_x
 
-            if isip == 0:       # don't redraw a bunch of times
-                #print (f"{isip} {islice} circle: {cir_x} {cir_y}")
-                circle = plt.Circle((cir_x, cir_y), 1)
-                ax.add_artist(circle)
+            #if isip == 0:       # don't redraw a bunch of times
+            #print (f"{isip} {islice} circle: {cir_x} {cir_y}")
+            circle = plt.Circle((cir_x, cir_y), 1)
+            ax.add_artist(circle)
 
             # slice line
             #plt.plot([slc_x,slc_x], [scenter-2.5, scenter+2.5])
 
-            mar_y = cir_y + sr.rip
+            mar_y = cir_y + sr.sign*sr.rip
             mar_x = slc_x + isip*.2
             # the signed radius point
             marker = "2"        # up
@@ -313,16 +363,9 @@ def draw_strip(strip):
                 y1 = cir_y + sr.sign * r[1]
                 plt.plot([mar_x, mar_x],
                          [y0, y1])
-def draw_ind(strips):
-    import matplotlib.pyplot as plt
-    import pylab
-    plt.clf()
-    pylab.subplot(aspect='equal') 
-    for sn in strips:
-        draw_strip(sip_ind(sn))
-
 
 class Sipem(object):
+
     '''
     Strip Impact Position Extreme Manipulation! 
     '''
@@ -330,13 +373,31 @@ class Sipem(object):
     def __init__(self, ripem):
         self.ripem = ripem
 
+        self.strips = dict(
+            col = {s.number:s for s in col_strips()},
+            ind = {s.number:s for s in ind_strips()})
+
+    def wire_region_pos(self, plane, strip):
+        'Wire region position in system of units'
+        pl = self.ripem.plane[plane]
+        x = pl.xpos * units.cm
+        y = strip * 5*units.cm
+        return (x,y)
+
+    @property
+    def ticks(self):
+        'Ticks array in system of units'
+        return self.ripem.ticks*units.us
+
+
     def response(self, plane, strip, sip, slices=[0,1]):
         '''
-        Return the response.
+        Return the response in system of units
         '''
-        sipmeth = eval("sip_" + plane) # evil, I know
-        strip = sipmeth(strip)
+        #print (f'Sipem.response: plane:{plane}, strip:{strip}, sip:{sip}')
+        strip = self.strips[plane][strip]
         sips = [s for s in strip.sips if s.impact == sip]
+        #print (f'response sips: {sips}')
         assert(len(sips) == 1)
         srs = sips[0].srs
         res = list()
@@ -353,9 +414,10 @@ class Sipem(object):
         res = numpy.asarray(res)
         res = res.sum(axis=0)
         res /= len(slices)
-        return res
+        return res*units.microampere
     
     def asarray(self, plane, slices=[0,1]):
+        'Return plane response as numpy array'
         nticks = len(self.ripem.ticks)
         
         # duplicate 6 sips per strip
@@ -374,6 +436,87 @@ class Sipem(object):
         ret += numpy.flip(ret, axis=0)
         return ret
 
+    def asrflist(self, strategy=None):
+        '''
+        Return ResponseFunctions.
+
+        The available strategy:
+        - None :: u = v
+        - "slice" :: u=slice1, v=slice2
+
+        Support when we have it:
+        - "hole" :: u=small hole, v=large hole
+
+        '''
+        from wirecell.sigproc.response import ResponseFunction as RF
+
+        supported_planes = ["ind","col"]
+
+        times = self.ticks
+        t0 = int(times[0])
+        tf = int(times[-1])
+        ls = (t0, tf, len(times))
+
+        ret = list()
+        for istrip in range(-5,6):
+            p_row0 = (5 + istrip)*12
+            m_row0 = (5 - istrip)*12
+            for isip in range(6):
+                sip = isip*0.5
+
+                # strategies only affect induction
+                pos = self.wire_region_pos("col", istrip)
+                res = self.response("col", istrip, sip, [0,1])
+                rf = RF("w", istrip, pos, ls, res, sip)
+                ret.append(rf)
+
+                if strategy is None:
+                    pos = self.wire_region_pos("ind", istrip)
+                    res = self.response("ind", istrip, sip, [0,1])
+                    rf = RF("u", istrip, pos, ls, res, sip)
+                    ret.append(rf)
+                    rf = RF("v", istrip, pos, ls, res, sip)
+                    ret.append(rf)
+                    continue
+                
+                if strategy == "slice":
+                    pos = self.wire_region_pos("ind", istrip)
+                    res = self.response("ind", istrip, sip, [0])
+                    rf = RF("u", istrip, pos, ls, res, sip)
+                    ret.append(rf)
+                    res = self.response("ind", istrip, sip, [1])
+                    rf = RF("v", istrip, pos, ls, res, sip)
+                    ret.append(rf)
+                    continue
+
+                raise ValueError(f"unsupported strategy: {strategy}")
+        return ret
+
+def plots_geom(pdf_file="pcbro.pdf"):
+    from matplotlib.backends.backend_pdf import PdfPages
+    import matplotlib.pyplot as plt
+    with PdfPages(pdf_file) as pdf:
+
+        for one in ind_strips():
+            draw_strip(one)
+        pdf.savefig(plt.gcf())
+        plt.close();
+
+        for one in ind_strips():
+            draw_strip(one)
+            pdf.savefig(plt.gcf())
+            plt.close();
+
+        for one in col_strips():
+            draw_strip(one)
+        pdf.savefig(plt.gcf())
+        plt.close();
+
+        for one in col_strips():
+            draw_strip(one)
+            pdf.savefig(plt.gcf())
+            plt.close();
+
 def plots(source, pdf_file="pcbro.pdf"):
     from matplotlib.backends.backend_pdf import PdfPages
     import matplotlib.pyplot as plt
@@ -385,22 +528,41 @@ def plots(source, pdf_file="pcbro.pdf"):
 
     with PdfPages(pdf_file) as pdf:
 
-        for strips in [[0], [-1,0,1], list(range(-5,6))]:
-            draw_ind(strips)
-            pdf.savefig(plt.gcf())
-            plt.close();
+        for plane in ['ind','col']:
+            for slices in [[0],[1],[0,1]]:
+                print(f'plotting {plane}')
+                a = sipem.asarray(plane, slices)
+                plt.clf()
+                plt.imshow(a, aspect='auto')
+                plt.colorbar()
+                plt.title(f'{plane} plane, slice:{slices}')
+                pdf.savefig(plt.gcf())
+                plt.close();
 
-        for strips in [[0],[1],[0,1]]:
-            a = sipem.asarray('ind', strips)
-            plt.clf()
-            plt.imshow(a, aspect='auto')
-            plt.colorbar()
-            pdf.savefig(plt.gcf())
-            plt.close();
-
-            plt.clf()
-            plt.imshow(a[40:90, 600:800], aspect='auto')
-            plt.colorbar()
-            pdf.savefig(plt.gcf())
-            plt.close();
+                plt.clf()
+                plt.imshow(a[40:90, 600:800], aspect='auto')
+                plt.colorbar()
+                plt.title(f'{plane} plane, slice:{slices}, zoomed')
+                pdf.savefig(plt.gcf())
+                plt.close();
             
+def convert(source, outputfile = "wire-cell-garfield-fine-response.json.bz2",
+            average=False, shaped=False):
+    '''Convert a source (dir or tar) of Garfield file pack into an output
+    wire cell field response file.
+
+    See also wirecell.sigproc.response.persist
+    See also wirecell.sigproc.ResponseFunction
+    '''
+
+    ripem = Ripem(source)
+    sipem = Sipem(ripem)
+    
+
+    rflist = sipem.asrflist(strategy="slice")
+    if shaped:
+        rflist = [d.shaped() for d in rflist]
+    if average:
+        rflist = wctrs.average(rflist)
+    wctrs.write(rflist, outputfile)
+
