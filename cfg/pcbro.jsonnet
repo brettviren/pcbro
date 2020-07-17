@@ -15,13 +15,15 @@ local sp = sp_maker(params, tools);
 
     // Return a raw source configuration node to read in a .bin file
     // and produce tensors with given tag.
-    rawsource(name, filename, tag="", nplanes=3) :: g.pnode({
+    rawsource(name, filename, tag="", nplanes=3, start=1, triggers=50) :: g.pnode({
         type: 'PcbroRawSource',
         name: name,
         data: {
             filename: filename,
             tag: tag,
             dupind: nplanes == 3,
+            start_trigger: start,
+            triggers: triggers,
         }}, nin=0, nout=1),
 
     // Return a tensor (sub)configuration
@@ -90,9 +92,9 @@ local sp = sp_maker(params, tools);
 
 
 
-    rawpipeline(infile, outfile)
+    rawpipeline(infile, outfile, tag)
     :: g.pipeline([
-      $.magnify("rawoutput", outfile, true, [ "orig0" ], tools.anodes[0]),
+      $.magnify("rawoutput", outfile, true, [ tag ], tools.anodes[0]),
       $.dumpframes("dumpframes")
     ]),
 
@@ -111,13 +113,13 @@ local sp = sp_maker(params, tools);
 
     backend(infile, outfile, tag="", nplanes=3) ::
     g.fan.sink( 'FrameFanout',
-                [$.rawpipeline(infile, outfile), $.sppipeline(infile, outfile)],
+                [$.rawpipeline(infile, outfile, tag), $.sppipeline(infile, outfile)],
                 name='fansink',
                 tag_rules=fanout_tag_rules
               ),
 
-    bin_sp_mag(infile, outfile, tag="", nplanes=3) :: g.pipeline([
-      $.rawsource("input", infile, tag, nplanes),
+    bin_sp_mag(infile, outfile, tag="", nplanes=3, start=0, triggers=50) :: g.pipeline([
+      $.rawsource("input", infile, tag, nplanes, start, triggers),
       $.tentoframe("tensor-to-frame", tensors=[$.tensor(tag)]),
       $.backend(infile, outfile, tag, nplanes)
     ]),

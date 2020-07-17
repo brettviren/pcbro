@@ -29,10 +29,12 @@ pcbro::RawSource::~RawSource()
 
 WireCell::Configuration pcbro::RawSource::default_configuration() const
 {
-    WireCell::Configuration cfg;       
+    WireCell::Configuration cfg;
     cfg["filename"] = "";       // can also accept an array of files
     cfg["tag"] = "";
     cfg["dupind"] = false;      // if true, DUPlicate INDuction planes
+    cfg["start_trigger"] = 0;
+    cfg["triggers"] = 50;
     return cfg;
 }
 
@@ -45,6 +47,10 @@ void pcbro::RawSource::configure(const WireCell::Configuration& cfg)
 
     m_tag = get<std::string>(cfg, "tag", "");
     log->debug("RawSource: using tag: \"{}\"", m_tag);
+
+
+    m_start_trigger = get<int>(cfg, "start_trigger", m_start_trigger);
+    m_triggers = get<int>(cfg, "triggers", m_triggers);
 
     auto jfn = cfg["filename"];
     if (jfn.empty()) {
@@ -116,7 +122,7 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
     // This fills ticks (rows) vs electronics channels (columns).
     pcbro::block128_t block;
     try {
-        m_cur = pcbro::make_trigger(block, m_cur, m_rd.end());
+        m_cur = pcbro::make_trigger( block, m_cur, m_rd.end() );
     }
     catch (const std::range_error& e) {
         log->debug("RawSource: after {} triggers end of file {}",
@@ -140,6 +146,19 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
     }
 
     ++m_ident;
+
+
+    if( m_ident < m_start_trigger ) {
+      log->debug("RawSource: skip trigger {}", m_ident);
+      return this->operator()(ts); //keep going
+    }
+    else if( m_ident >= m_start_trigger+m_triggers ){
+      log->debug("RawSource: processed {} triggers. Now ening", m_triggers);
+      m_eos = true;
+      return true;
+    }
+
+
     log->trace("RawSource: [{}]: #{}: {} ticks", m_tag, m_ident, block.rows());
 
     // produce tensor set.
@@ -204,7 +223,7 @@ bool pcbro::RawSource::operator()(ITensorSet::pointer& ts)
     wf_md["tag"] = m_tag;
     wf_md["nplanes"] = nplanes;
     itv->push_back(ITensor::pointer(frame));
-    
+
     Aux::SimpleTensor<int>* cht = new Aux::SimpleTensor<int>({nchans});
     int* chdat = reinterpret_cast<int*>(cht->store().data());
     std::iota(chdat, chdat+nchans, 1);

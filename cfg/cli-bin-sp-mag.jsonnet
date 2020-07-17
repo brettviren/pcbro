@@ -9,9 +9,9 @@ local g = import "pgraph.jsonnet";
 //   -c cli-bin-magraw.jsonent [...]
 
 
-function(infile, outfile, nplanes=3) {
+function(infile, outfile, nplanes=3, start=32, triggers=1) {
 
-    local graph =  pcbro.bin_sp_mag(infile, outfile, "orig0", nplanes),
+    local graph =  pcbro.bin_sp_mag(infile, outfile, "orig0", nplanes, start, triggers),
     local app = {
         type: 'Pgrapher',
         data: {
