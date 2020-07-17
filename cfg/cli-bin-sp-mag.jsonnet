@@ -11,7 +11,7 @@ local g = import "pgraph.jsonnet";
 
 function(infile, outfile, nplanes=3) {
 
-    local graph = pcbro.bin_sp_mag(infile, outfile, "orig0", nplanes),
+    local graph =  pcbro.bin_sp_mag(infile, outfile, "orig0", nplanes),
     local app = {
         type: 'Pgrapher',
         data: {

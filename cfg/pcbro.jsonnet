@@ -55,57 +55,6 @@ local sp = sp_maker(params, tools);
 
     ////////////////////////////////////////////////////////////////////////////
 
-    // Tag rules and fanpipe
-    local fanout_tag_rules = [{
-      frame: { '.*': 'orig0' },
-      trace: { },
-    }],
-
-    local fanin_tag_rules = [{
-      frame: { '.*': 'framefanin' },
-      trace: {
-        ['gauss0']: 'gauss0',
-        ['wiener0']: 'wiener0',
-        ['threshold0']: 'threshold0',
-      },
-    }],
-
-    fanpipe:: function( pipelines, name='fanpipe', outtags=[] ) {
-
-      local fanmult = std.length(pipelines),
-      local fannums = std.range(0, fanmult -1),
-
-      local fanout = g.node({
-        type: 'FrameFanout',
-        name: name,
-        data: {
-          multiplicity: fanmult,
-          tag_rules: $.fout_tag_rules,
-        },
-      }, nin=1, nout=fanmult),
-
-      local fanin = g.pnode({
-        type: 'FrameFanin',
-        name: name,
-        data: {
-          multiplicity: fanmult,
-          tag_rules: $.fin_tag_rules,
-          tags: outtags,
-        },
-      }, nin=fanmult, nout=1),
-
-      ret: g.intern(
-        innodes=[fanout],
-        outnodes=[fanin],
-        centernodes=pipelines,
-        edges =
-        [g.edge(fanout, pipelines[n], n, 0) for n in std.range(0, fanmult-1)] +
-        [g.edge(pipelines[n], fanin, 0, n) for n in std.range(0, fanmult-1)],
-        name=name
-      ),
-
-    }.ret,
-
     // Magnifier datadumps for raw ADC and SP data signals
 
     magnify( name, filename, usetag, frames, anode ) :: g.pnode({
@@ -130,7 +79,6 @@ local sp = sp_maker(params, tools);
                 $.npzsink("output", outfile, tags=[tag]),
                 $.dumpframes("dumpframes")]),
 
-
     bin_mag(infile, outfile, tag="", nplanes=3) ::
     g.pipeline([
                 $.rawsource("input", infile, tag, nplanes),
@@ -140,20 +88,41 @@ local sp = sp_maker(params, tools);
                 ]),
 
 
-    pipelinesp(infile, outfile, tag="", nplanes=3) :: g.pipeline([
-        $.rawsource("input", infile, tag, nplanes),
-        $.tentoframe("tensor-to-frame", tensors=[$.tensor(tag)]),
-        $.magnify("output", outfile, false, [ tag ], tools.anodes[0]),
-        sp.make_sigproc(tools.anodes[0]),
-        $.magnify("output", outfile, true, [ 'gauss0', 'wiener0', 'threshold0'], tools.anodes[0])
+
+
+    rawpipeline(infile, outfile)
+    :: g.pipeline([
+      $.magnify("rawoutput", outfile, true, [ "orig0" ], tools.anodes[0]),
+      $.dumpframes("dumpframes")
     ]),
 
+    sppipeline(infile, outfile)
+    :: g.pipeline([
+      sp.make_sigproc(tools.anodes[0]),
+      $.magnify("spoutput", outfile, true, [ 'gauss0', 'wiener0', 'threshold0'], tools.anodes[0]),
+      $.dumpframes("dumpframes")
+    ]),
+
+    // Tag rules and fanpipe
+    local fanout_tag_rules = [{
+      frame: { '.*': "orig0" },
+      trace: { },
+    }],
+
+    backend(infile, outfile, tag="", nplanes=3) ::
+    g.fan.sink( 'FrameFanout',
+                [$.rawpipeline(infile, outfile), $.sppipeline(infile, outfile)],
+                name='fansink',
+                tag_rules=fanout_tag_rules
+              ),
 
     bin_sp_mag(infile, outfile, tag="", nplanes=3) :: g.pipeline([
-        $.rawsource("input", infile, tag, nplanes),
-        $.fanpipe( pipelines=$.pipelinesp(infile, outfile, tag="", nplanes=3), name='fanpipe', outtags=[] ),
-        $.dumpframes("dumpframes")
+      $.rawsource("input", infile, tag, nplanes),
+      $.tentoframe("tensor-to-frame", tensors=[$.tensor(tag)]),
+      $.backend(infile, outfile, tag, nplanes)
     ]),
+
+
 
 
     bin_sp_npz(infile, outfile, tag="", nplanes=3) ::
