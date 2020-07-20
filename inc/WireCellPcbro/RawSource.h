@@ -21,7 +21,7 @@ namespace pcbro {
         WireCell::Configuration default_configuration() const;
         void configure(const WireCell::Configuration& cfg);
 
-        
+
         // ITensorSetSource interface
         virtual bool operator()(WireCell::ITensorSet::pointer& ts);
 
@@ -40,6 +40,9 @@ namespace pcbro {
         int m_ident{0};
         double m_tick{0.5*WireCell::units::us};
         std::string m_tag{""};
+
+        int m_start_trigger{0};
+        int m_triggers{50};
 
         bool init_file();
     };
