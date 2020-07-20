@@ -41,6 +41,8 @@ namespace pcbro {
         double m_tick{0.5*WireCell::units::us};
         std::string m_tag{""};
 
+        std::string m_start_trigger_string{"0"};
+        std::string m_triggers_string{"50"};
         int m_start_trigger{0};
         int m_triggers{50};
 

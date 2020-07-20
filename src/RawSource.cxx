@@ -33,8 +33,8 @@ WireCell::Configuration pcbro::RawSource::default_configuration() const
     cfg["filename"] = "";       // can also accept an array of files
     cfg["tag"] = "";
     cfg["dupind"] = false;      // if true, DUPlicate INDuction planes
-    cfg["start_trigger"] = 0;
-    cfg["triggers"] = 50;
+    cfg["start_trigger"] = "0";
+    cfg["triggers"] = "50";
     return cfg;
 }
 
@@ -49,8 +49,11 @@ void pcbro::RawSource::configure(const WireCell::Configuration& cfg)
     log->debug("RawSource: using tag: \"{}\"", m_tag);
 
 
-    m_start_trigger = get<int>(cfg, "start_trigger", m_start_trigger);
-    m_triggers = get<int>(cfg, "triggers", m_triggers);
+    m_start_trigger_string = get<std::string>(cfg, "start_trigger", m_start_trigger_string);
+    m_triggers_string = get<std::string>(cfg, "triggers", m_triggers_string);
+
+    m_start_trigger = std::stoi( m_start_trigger_string );
+    m_triggers = std::stoi( m_triggers_string );
 
     auto jfn = cfg["filename"];
     if (jfn.empty()) {
