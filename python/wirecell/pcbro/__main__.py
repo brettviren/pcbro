@@ -83,14 +83,24 @@ def convert_garfield_one(output, datfile):
 @cli.command("plot-garfield")
 @click.option("-o","--output", default="garfield-plots.pdf", help="Output PDF file")
 @click.argument("source")
-def print_garfield(output, source):
+def plot_garfield(output, source):
+    '''Plot responses after parsing garfield, and applying integrating map.  
+
+    What you see should be reasonably what comes out as .json.bz2 with
+    convert-garfield.
+
+    '''
     source = sourceme(source)
     pcbgf.plots(source, output)
 
 @cli.command("plot-garfield-check")
 @click.option("-o","--output", default="garfield-plots.pdf", help="Output PDF file")
-def print_garfield(output):
+def plot_garfield_check(output):
+    '''
+    Make some artwork which "obviously" shows the integration map is correct.
+    '''
     pcbgf.plots_geom(output)
+
 
 @cli.command("gen-wires")
 @click.argument("output-file")

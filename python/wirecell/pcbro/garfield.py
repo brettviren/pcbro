@@ -243,7 +243,7 @@ class Strip:
 
 def sign(x): return -1 if x < 0 else +1
 
-def xxx_strips(ranges, slice_size, strips_data):
+def _xxx_strips(ranges, slice_size, strips_data):
     strips = list()
     for istrip, snum in enumerate(range(-5,6)):
         strip_data = strips_data[istrip]
@@ -291,28 +291,70 @@ def xxx_strips(ranges, slice_size, strips_data):
         strips.append(Strip(snum, slice_size, sips))
     return strips
 
+def fix_ranges(rr):
+    ret = list()
+    for r in rr:
+        if r[0] < r[1]:
+            ret.append(r)
+        else:
+            ret.append((r[1],r[0]))
+    return numpy.asarray(ret)
+
+def xxx_strips(strips_data, slice_size):
+    strips = list()
+    for istrip, snum in enumerate(range(-5,6)):
+        strip_data = strips_data[istrip]
+        slc0 = strip_data.slices[0]
+        slc1 = strip_data.slices[1]
+        sips = list()
+        for isip in range(6):
+            isip0 = slc0.sips[isip]
+            isip1 = slc1.sips[isip]
+
+            ranges0 = fix_ranges(isip0.wir(snum))
+            ranges1 = fix_ranges(isip1.wir(snum))
+
+            s = Sip(isip*0.5,
+                    [Siprip(isip0.rip, isip0.cen, isip0.dir, ranges0),
+                     Siprip(isip1.rip, isip1.cen, isip1.dir, ranges1)])
+            sips.append(s)
+        strips.append(Strip(snum, slice_size, sips))
+    return strips
+    
+
 sip_col_slice = 2.5
 sip_ind_slice = 3.3/2.0
 
 def col_strips():
     from . import holes
-    plane_data = holes.planes["col"]
-    ranges = [                  # per slice, strip 0
-        numpy.asarray([(-2.5, -1.8), (0.2, 1.5)]),
-        numpy.asarray([(-1.5, -0.2), (1.8, 2.5)]),
-    ]
-    return xxx_strips(ranges, sip_col_slice,
-                      [plane_data.strips[snum%2] for snum in range(-5,6)])
-
+    strips = holes.get_strips("col")
+    return xxx_strips(strips, sip_col_slice)
 def ind_strips():
     from . import holes
-    plane_data = holes.planes["ind"]
-    ranges = [                  # per slice, strip 0
-        numpy.asarray([(-2.5, -1.0), (1.0, 2.5)]),
-        numpy.asarray([(-1.5, -0.0), (0.0, 1.5)]),
-    ]
-    return xxx_strips(ranges, sip_ind_slice,
-                      [plane_data.strips[0] for snum in range(-5,6)])
+    strips = holes.get_strips("ind")
+    return xxx_strips(strips, sip_ind_slice)
+    
+
+
+# def _col_strips():
+#     from . import holes
+#     plane_data = holes.planes["col"]
+#     ranges = [                  # per slice, strip 0
+#         numpy.asarray([(-2.5, -1.8), (0.2, 1.5)]),
+#         numpy.asarray([(-1.5, -0.2), (1.8, 2.5)]),
+#     ]
+#     return xxx_strips(ranges, sip_col_slice,
+#                       [plane_data.strips[snum%2] for snum in range(-5,6)])
+
+# def _ind_strips():
+#     from . import holes
+#     plane_data = holes.planes["ind"]
+#     ranges = [                  # per slice, strip 0
+#         numpy.asarray([(-2.5, -1.0), (1.0, 2.5)]),
+#         numpy.asarray([(-1.5, -0.0), (0.0, 1.5)]),
+#     ]
+#     return xxx_strips(ranges, sip_ind_slice,
+#                       [plane_data.strips[0] for snum in range(-5,6)])
 
     
 
@@ -377,22 +419,22 @@ class Sipem(object):
             col = {s.number:s for s in col_strips()},
             ind = {s.number:s for s in ind_strips()})
 
-    def wire_region_pos(self, plane, strip):
-        'Wire region position in system of units'
+    def wire_region_pos(self, plane, snum):
+        'Return position of strip'
         pl = self.ripem.plane[plane]
-        x = pl.xpos * units.cm
-        y = strip * 5*units.cm
+        x = pl.xpos             # longitiduinal drift direction
+        y = snum * 5.0*units.cm # transverse direction
         return (x,y)
 
     @property
     def ticks(self):
-        'Ticks array in system of units'
-        return self.ripem.ticks*units.us
+        'Sample time of response function'
+        return self.ripem.ticks
 
 
     def response(self, plane, strip, sip, slices=[0,1]):
         '''
-        Return the response in system of units
+        Return response function for plane/strip and impact on one slice or average over slices.
         '''
         #print (f'Sipem.response: plane:{plane}, strip:{strip}, sip:{sip}')
         strip = self.strips[plane][strip]
@@ -414,7 +456,7 @@ class Sipem(object):
         res = numpy.asarray(res)
         res = res.sum(axis=0)
         res /= len(slices)
-        return res*units.microampere
+        return res
     
     def asarray(self, plane, slices=[0,1]):
         'Return plane response as numpy array'
@@ -499,21 +541,25 @@ def plots_geom(pdf_file="pcbro.pdf"):
 
         for one in ind_strips():
             draw_strip(one)
+        plt.title(f'ind strips')
         pdf.savefig(plt.gcf())
         plt.close();
 
         for one in ind_strips():
             draw_strip(one)
+            plt.title(f'ind strip {one.number}')
             pdf.savefig(plt.gcf())
             plt.close();
 
         for one in col_strips():
             draw_strip(one)
+        plt.title(f'col strips')
         pdf.savefig(plt.gcf())
         plt.close();
 
         for one in col_strips():
             draw_strip(one)
+            plt.title(f'col strip {one.number}')
             pdf.savefig(plt.gcf())
             plt.close();
 
@@ -528,23 +574,31 @@ def plots(source, pdf_file="pcbro.pdf"):
 
     with PdfPages(pdf_file) as pdf:
 
-        for plane in ['ind','col']:
-            for slices in [[0],[1],[0,1]]:
-                print(f'plotting {plane}')
-                a = sipem.asarray(plane, slices)
-                plt.clf()
-                plt.imshow(a, aspect='auto')
-                plt.colorbar()
-                plt.title(f'{plane} plane, slice:{slices}')
-                pdf.savefig(plt.gcf())
-                plt.close();
+        for iszoom in [False, True]:
+            for plane in ['ind','col']:
+                for slices in [[0],[1],[0,1]]:
+                    print(f'plotting {plane}')
+                    a = sipem.asarray(plane, slices)
+                    tit = f'{plane} plane, slice:{slices}'
+                    if iszoom: tit += ', zoomed'
+                    plt.clf()
+                    implo=ticlo = 0
+                    imphi,tichi = a.shape
+                    slo = imphi // 2 - 6 - 0.5
+                    shi = imphi // 2 + 6 - 0.5
+                    plt.imshow(a, aspect='auto')
+                    if iszoom:
+                        plt.xlim(700,800)
+                        plt.ylim(imphi//2 - 30, imphi//2 + 30)
+                    plt.colorbar()
+                    plt.title(tit)
+                    plt.ylabel('impacts (0.5 mm spacing)')
+                    plt.xlabel('ticks (0.1 us)')
+                    plt.plot([ticlo,tichi],[slo,slo], linewidth=0.1, color='red')
+                    plt.plot([ticlo,tichi],[shi,shi], linewidth=0.1, color='red')
+                    pdf.savefig(plt.gcf())
+                    plt.close();
 
-                plt.clf()
-                plt.imshow(a[40:90, 600:800], aspect='auto')
-                plt.colorbar()
-                plt.title(f'{plane} plane, slice:{slices}, zoomed')
-                pdf.savefig(plt.gcf())
-                plt.close();
             
 def convert(source, outputfile = "wire-cell-garfield-fine-response.json.bz2",
             average=False, shaped=False):
