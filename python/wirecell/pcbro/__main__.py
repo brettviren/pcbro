@@ -80,6 +80,13 @@ def convert_garfield_one(output, datfile):
         output = os.path.splitext(os.path.basename(datfile))[0] + ".npz"
     pcbgf.dat2npz(datfile, output)    
 
+
+@cli.command("plot-garfield-micro-wires")
+@click.option("-o","--output", default="garfield-micro-wires.pdf", help="Output PDF file")
+@click.argument("source")
+def plot_garfield_micro_wires(output, source):
+    pcbgf.draw_file(source, output)
+
 @cli.command("plot-garfield")
 @click.option("-o","--output", default="garfield-plots.pdf", help="Output PDF file")
 @click.argument("source")

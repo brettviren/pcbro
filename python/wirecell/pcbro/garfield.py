@@ -6,7 +6,7 @@ File names:
 
   <S.S>_[col|ind]_[L|R]_[a|b].dat
 
-S.S is electron shift in {0.0, 0.5, ..., 2.5} cm.
+S.S is electron shift in {0.0, 0.5, ..., 2.5} mm.
 col|ind is collection or induction 
 
 '''
@@ -63,8 +63,8 @@ def load(source):
             print (s.format(**dat))
 
         
-def dat2npz(datfilename, npzfile):
-    fninfo = parse_filename(datfilename)
+def dat2arrs(datfilename):
+    #fninfo = parse_filename(datfilename)
     gen = wctgf.split_text_records(open(datfilename,'rb').read().decode())
 
     ret = defaultdict(list)
@@ -75,7 +75,61 @@ def dat2npz(datfilename, npzfile):
     arrs=dict()
     for k,v in ret.items():
         arrs[k] = numpy.asarray(v)
+    return arrs
+
+def dat2npz(datfilename, npzfile):
+    arrs = dat2arrs(datfilename)
     numpy.savez(npzfile, **arrs)
+
+
+def draw_file(datfilename, pdf_file):
+    from matplotlib.backends.backend_pdf import PdfPages
+    import matplotlib.pyplot as plt
+    import pylab
+
+    fninfo = parse_filename(datfilename)
+    print (fninfo)
+    dat = dat2arrs(datfilename)
+    
+    wrp = dat['wire_region_pos']
+    wrp = wrp[::2,:]
+    curs = dat['y']
+    curs = curs[0::2,:] + curs[1::2,:]
+    print(curs.shape)
+
+    with PdfPages(pdf_file) as pdf:
+
+        def final(tit,xtit='transverse [mm]',ytit='drift'):
+            plt.title(tit)
+            if xtit: plt.xlabel(xtit)
+            if ytit: plt.ylabel(ytit)
+            pdf.savefig(plt.gcf())
+            plt.close();
+            
+        hole_depth = 3.2
+
+        pylab.subplot(aspect='equal');
+        ax = plt.gcf().gca()
+        for ind,(x,y) in enumerate(wrp):
+            ax.add_artist(plt.Circle((x,y),0.15/2.0, fill=False))
+            if ind < 10:
+                vmin, vmax = numpy.min(curs[ind]), numpy.max(curs[ind])
+                tot = numpy.sum(curs[ind]) * 100 * units.us / units.eplus
+                lab = '[%d] %.1e < %.1e (%.1f)'%(ind,vmin,vmax,tot)
+                tx = x
+                ty = (2+ind)*0.25
+                if y > hole_depth/2:
+                    ty = hole_depth - ty
+                plt.text(tx,ty, lab, fontsize=8)
+        plt.plot([float(fninfo['dist'])],[3.5], marker="o")
+        plt.plot([i*0.5 for i in range(6)],[3.5]*6, linewidth=0, marker="x")
+        plt.plot((-1,-1), (0.0,hole_depth), color='blue')
+        plt.plot((+1,+1), (0.0,hole_depth), color='blue')
+        plt.ylim(-0.2,4.0)
+        half_width=5.0
+        plt.xlim(-half_width, half_width)
+        final('micro wires {filename}'.format(**fninfo))
+        
 
 
 # At one radial impact position we have a family of responses each
@@ -118,14 +172,18 @@ class Ripem(object):
             self.load(source)
 
     def responses(self, plane, radius, span):
-        '''Return a collection of responses as 2D array.  
+        '''Return a collection of responses over the span as 2D array.  
 
-        Each row is a one response on a micro-wire.
+        Each row is a one response on a micro-wire.  Rows are ordered
+        same as the span.
 
         The plane is the name ('ind' or 'col').  Radius is given as a
-        float or more exactly as string (eg '0.5').  Span is given as
-        a pair of floating point numbers which are compared against
-        micro-wire center positions.
+        float (in system of units) or more exactly as string
+        representation in mm (eg '0.5') and must be from the set of
+        radial impact positions covered by the loaded files.  Span is
+        given as a pair of floating point numbers (in system of units)
+        which are compared against micro-wire center positions.
+
         '''
         riplane = self.plane[plane]
         if isinstance(radius, float):
@@ -241,63 +299,16 @@ class Strip:
     sips: List[Sip]             # ordered list of strip impact positions.
 
 
-def sign(x): return -1 if x < 0 else +1
-
-def _xxx_strips(ranges, slice_size, strips_data):
-    strips = list()
-    for istrip, snum in enumerate(range(-5,6)):
-        strip_data = strips_data[istrip]
-        slc0 = strip_data.slices[0]
-        slc1 = strip_data.slices[1]
-        sips = list()
-        for isip in range(6):
-            isip0 = slc0.sips[isip]
-            isip1 = slc1.sips[isip]
-
-            # sign of the radial impact position (above/below center)
-            s0 = 1
-            r0 = isip0.rip
-            if r0 < 0:
-                s0 = -1
-                r0 *= -1
-
-            s1 = 1
-            r1 = isip1.rip
-            if r1 < 0:
-                s1 = -1
-                r1 *= -1
-
-            # signed distance from strip0 center to hole center
-            d0 = snum*5.0 + isip0.cen
-            d1 = snum*5.0 + isip1.cen
-
-            # the strip0 integration ranges translated to stripN
-            ranges0 = ranges[0] - d0
-            ranges1 = ranges[1] - d1
-
-            # We only have data for "postive" radius so invert if rip
-            # is negative.
-            if s0 < 0:
-                ranges0 *= -1
-                ranges0 = numpy.flip(ranges0, axis=1)
-            if s1 < 0:
-                ranges1 *= -1
-                ranges1 = numpy.flip(ranges1, axis=1)
-
-            s = Sip(isip*0.5,
-                    [Siprip(r0, isip0.cen, s0, ranges0),
-                     Siprip(r1, isip1.cen, s1, ranges1)])
-            sips.append(s)
-        strips.append(Strip(snum, slice_size, sips))
-    return strips
 
 def fix_ranges(rr):
     ret = list()
     for r in rr:
-        if r[0] < r[1]:
-            ret.append(r)
-        else:
-            ret.append((r[1],r[0]))
+        if r[0] > r[1]:
+            r[0],r[1] = r[1],r[0]
+        ret.append(r)
+        # it makes no sense to ask for a range inside the hole
+        assert (abs(r[0]) >= 1.0 and abs(r[1]) >= 1.0)
+
     return numpy.asarray(ret)
 
 def xxx_strips(strips_data, slice_size):
@@ -333,29 +344,6 @@ def ind_strips():
     from . import holes
     strips = holes.get_strips("ind")
     return xxx_strips(strips, sip_ind_slice)
-    
-
-
-# def _col_strips():
-#     from . import holes
-#     plane_data = holes.planes["col"]
-#     ranges = [                  # per slice, strip 0
-#         numpy.asarray([(-2.5, -1.8), (0.2, 1.5)]),
-#         numpy.asarray([(-1.5, -0.2), (1.8, 2.5)]),
-#     ]
-#     return xxx_strips(ranges, sip_col_slice,
-#                       [plane_data.strips[snum%2] for snum in range(-5,6)])
-
-# def _ind_strips():
-#     from . import holes
-#     plane_data = holes.planes["ind"]
-#     ranges = [                  # per slice, strip 0
-#         numpy.asarray([(-2.5, -1.0), (1.0, 2.5)]),
-#         numpy.asarray([(-1.5, -0.0), (0.0, 1.5)]),
-#     ]
-#     return xxx_strips(ranges, sip_ind_slice,
-#                       [plane_data.strips[0] for snum in range(-5,6)])
-
     
 
 def draw_strip(strip):
@@ -423,7 +411,7 @@ class Sipem(object):
         'Return position of strip'
         pl = self.ripem.plane[plane]
         x = pl.xpos             # longitiduinal drift direction
-        y = snum * 5.0*units.cm # transverse direction
+        y = snum * 5.0*units.mm # transverse direction
         return (x,y)
 
     @property
@@ -534,34 +522,35 @@ class Sipem(object):
                 raise ValueError(f"unsupported strategy: {strategy}")
         return ret
 
-def plots_geom(pdf_file="pcbro.pdf"):
+def plots_geom(pdf_file="pcbro-garfield-geom.pdf"):
     from matplotlib.backends.backend_pdf import PdfPages
     import matplotlib.pyplot as plt
     with PdfPages(pdf_file) as pdf:
 
-        for one in ind_strips():
-            draw_strip(one)
-        plt.title(f'ind strips')
-        pdf.savefig(plt.gcf())
-        plt.close();
+        def final(tit,xtit=None,ytit='transverse [mm]'):
+            plt.title(tit)
+            if xtit: plt.xlabel(xtit)
+            if ytit: plt.ylabel(ytit)
+            pdf.savefig(plt.gcf())
+            plt.close();
+            
 
         for one in ind_strips():
             draw_strip(one)
-            plt.title(f'ind strip {one.number}')
-            pdf.savefig(plt.gcf())
-            plt.close();
+        final(f'ind strips')
+
+
+        for one in ind_strips():
+            draw_strip(one)
+            final(f'ind strip {one.number}')
 
         for one in col_strips():
             draw_strip(one)
-        plt.title(f'col strips')
-        pdf.savefig(plt.gcf())
-        plt.close();
+        final(f'col strips')
 
         for one in col_strips():
             draw_strip(one)
-            plt.title(f'col strip {one.number}')
-            pdf.savefig(plt.gcf())
-            plt.close();
+            final(f'col strip {one.number}')
 
 def plots(source, pdf_file="pcbro.pdf"):
     from matplotlib.backends.backend_pdf import PdfPages

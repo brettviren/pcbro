@@ -1,3 +1,12 @@
+#!/usr/bin/env python3
+'''Describe the geometry in terms of slices and strips and planes and
+strip impact positions and ranges of integration.
+
+Note: this file assumes all literal distance values are in implicitly
+stated wirecell.units base unit for length (mm).
+
+'''
+
 from collections import defaultdict, namedtuple
 import numpy
 
