@@ -35,13 +35,13 @@ plot () {
 }
 
 
-gar2wct $(resp impslc-colave)    0   1 0,1
-gar2wct $(resp impave-colave)  0,1 0,1 0,1
-gar2wct $(resp impave-colslc0) 0,1 0,1   0
-gar2wct $(resp impave-colslc1) 0,1 0,1   1
+gar2wct $(resp indslc-colave)    0   1 0,1
+gar2wct $(resp indave-colave)  0,1 0,1 0,1
+gar2wct $(resp indave-colslc0) 0,1 0,1   0
+gar2wct $(resp indave-colslc1) 0,1 0,1   1
 
-plot $(resp impslc-colave)
-plot $(resp impave-colave)
-plot $(resp impave-colslc0)
-plot $(resp impave-colslc1)
+plot $(resp indslc-colave)
+plot $(resp indave-colave)
+plot $(resp indave-colslc0)
+plot $(resp indave-colslc1)
 
