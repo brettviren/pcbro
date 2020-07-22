@@ -410,8 +410,8 @@ class Sipem(object):
     def wire_region_pos(self, plane, snum):
         'Return position of strip'
         pl = self.ripem.plane[plane]
-        x = pl.xpos             # longitiduinal drift direction
-        y = snum * 5.0*units.mm # transverse direction
+        y = pl.xpos             # longitiduinal drift direction
+        x = snum * 5.0*units.mm # transverse direction
         return (x,y)
 
     @property
@@ -419,6 +419,12 @@ class Sipem(object):
         'Sample time of response function'
         return self.ripem.ticks
 
+    @property
+    def tstart(self):
+        return self.ripem.ticks[0]
+    @property
+    def period(self):
+        return self.ripem.ticks[1] - self.ripem.ticks[0]
 
     def response(self, plane, strip, sip, slices=[0,1]):
         '''
@@ -466,6 +472,43 @@ class Sipem(object):
         ret += numpy.flip(ret, axis=0)
         return ret
 
+    def inschema(self, speed, origin, uslices=[0], vslices=[1], wslices=[0,1]):
+        '''
+        Return self as schema object
+        wirecell.sigproc.response.schema.FieldResponse.
+
+        The available strategy:
+        - None :: u = v
+        - "slice" :: u=slice1, v=slice2
+
+        Support when we have it:
+        - "hole" :: u=small hole, v=large hole
+        '''
+        from wirecell.sigproc.response.schema import FieldResponse, PlaneResponse, PathResponse
+        
+        def paths(pname, slices):
+            ret = list()
+            for istrip in range(-5,6):
+                for isip in range(6):
+                    sip = isip*0.5*units.mm
+                    pos = self.wire_region_pos(pname, istrip)
+                    pitchpos = float(pos[0]) + sip
+                    res = self.response(pname, istrip, sip, slices)
+                    pr = PathResponse(res, pitchpos, 0.0)
+                    print(f'{pname} strip:{istrip} sip#:{isip} sip:{sip} ppos:{pitchpos}')
+                    ret.append(pr)
+            return ret
+
+        anti_drift_axis = (1.0, 0.0, 0.0)
+        return FieldResponse(
+            [PlaneResponse(paths("ind", uslices), 0, 3.2*units.mm, 5.0*units.mm),
+             PlaneResponse(paths("ind", vslices), 1, 3.2*units.mm, 5.0*units.mm),
+             PlaneResponse(paths("col", wslices), 2, 0.0*units.mm, 5.0*units.mm)],
+            anti_drift_axis,
+            origin, self.tstart, self.period, speed)
+
+
+
     def asrflist(self, strategy=None):
         '''
         Return ResponseFunctions.
@@ -489,15 +532,17 @@ class Sipem(object):
 
         ret = list()
         for istrip in range(-5,6):
-            p_row0 = (5 + istrip)*12
-            m_row0 = (5 - istrip)*12
+
             for isip in range(6):
-                sip = isip*0.5
+                sip = isip*0.5*units.mm
 
                 # strategies only affect induction
                 pos = self.wire_region_pos("col", istrip)
+                ## RF.pos is (wirepos, pitchpos), pitchpos is relative to wire zero
+
+                print(f'strip:{istrip} sip#:{isip} sip:{sip} pos:{pos}')
                 res = self.response("col", istrip, sip, [0,1])
-                rf = RF("w", istrip, pos, ls, res, sip)
+                rf = RF("w", istrip, (0.0, pos[0]), ls, res, sip)
                 ret.append(rf)
 
                 if strategy is None:
@@ -589,23 +634,23 @@ def plots(source, pdf_file="pcbro.pdf"):
                     plt.close();
 
             
-def convert(source, outputfile = "wire-cell-garfield-fine-response.json.bz2",
-            average=False, shaped=False):
-    '''Convert a source (dir or tar) of Garfield file pack into an output
-    wire cell field response file.
+# def convert(source, outputfile = "wire-cell-garfield-fine-response.json.bz2",
+#             average=False, shaped=False):
+#     '''Convert a source (dir or tar) of Garfield file pack into an output
+#     wire cell field response file.
 
-    See also wirecell.sigproc.response.persist
-    See also wirecell.sigproc.ResponseFunction
-    '''
+#     See also wirecell.sigproc.response.persist
+#     See also wirecell.sigproc.ResponseFunction
+#     '''
 
-    ripem = Ripem(source)
-    sipem = Sipem(ripem)
+#     ripem = Ripem(source)
+#     sipem = Sipem(ripem)
     
 
-    rflist = sipem.asrflist(strategy="slice")
-    if shaped:
-        rflist = [d.shaped() for d in rflist]
-    if average:
-        rflist = wctrs.average(rflist)
-    wctrs.write(rflist, outputfile)
+#     rflist = sipem.asrflist(strategy="slice")
+#     if shaped:
+#         rflist = [d.shaped() for d in rflist]
+#     if average:
+#         rflist = wctrs.average(rflist)
+#     wctrs.write(rflist, outputfile)
 

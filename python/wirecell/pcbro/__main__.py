@@ -37,12 +37,16 @@ def cli(ctx):
               help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
 @click.option("-z", "--zero-wire-locs", default=[0.0,0.0,0.0], nargs=3, type=float,
               help="Set location of zero wires.  def: 0 0 0")
-@click.option("-S", "--strategy", default=None,
-              help="Set strategy (default, slice or hole, see code)")
+@click.option("-U", "--uslices", default="0,1",
+              help="Set which induction slices to use for U plane")
+@click.option("-V", "--vslices", default="0,1",
+              help="Set which induction slices to use for V plane")
+@click.option("-W", "--wslices", default="0,1",
+              help="Set which collection slices to use for W plane")
 @click.argument("garfield-fileset")
 @click.argument("wirecell-field-response-file")
 def convert_garfield(origin, speed, normalization, zero_wire_locs,
-                     strategy,
+                     uslices, vslices, wslices,
                      garfield_fileset, wirecell_field_response_file):
     '''
     Produce a WCT field file from tarfile of Garfield output text files.
@@ -60,19 +64,26 @@ def convert_garfield(origin, speed, normalization, zero_wire_locs,
     origin = eval(origin, units.__dict__)
     speed = eval(speed, units.__dict__)
 
+    uslices = list(map(int,uslices.split(',')))
+    vslices = list(map(int,vslices.split(',')))
+    wslices = list(map(int,wslices.split(',')))
 
     ripem = gar.Ripem(sourceme(garfield_fileset))
     sipem = gar.Sipem(ripem)
-    rflist = sipem.asrflist(strategy)
 
-    fr = rf1dtoschema(rflist, origin, speed)
+    fr = sipem.inschema(speed, origin, uslices, vslices, wslices)
     per.dump(wirecell_field_response_file, fr)
 
+    # rflist = sipem.asrflist(strategy)
+    # print("made %d response functions" % len(rflist))
+    # fr = rf1dtoschema(rflist, origin, speed)
+    # per.dump(wirecell_field_response_file, fr)
 
-@cli.command("convert-garfield-one")
+
+@cli.command("convert-garfield-npz")
 @click.option("-o","--output",default=None, help="Output .npz file")
 @click.argument("datfile")
-def convert_garfield_one(output, datfile):
+def convert_garfield_npz(output, datfile):
     '''
     Convert one Garfield .dat file to a .npz file
     '''
