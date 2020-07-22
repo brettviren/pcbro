@@ -10,8 +10,13 @@ local g = import "pgraph.jsonnet";
 //
 // infile may also be an array
 function(infile, outfile, nplanes=3) {
+    
+    // Return graph to convert from pcbro .bin to .npz
+    local graph = g.pipeline([pcbro.rawsource("input", infile, nplanes=nplanes),
+                              pcbro.tentoframe("tensor-to-frame"),
+                              pcbro.npzsink("output", outfile),
+                              pcbro.dumpframes("dumpframes")]),
 
-    local graph = pcbro.bin_npz(infile, outfile, "bin2npz", nplanes),
     local app = {
         type: 'Pgrapher',
         data: {

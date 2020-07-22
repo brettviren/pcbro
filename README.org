@@ -4,7 +4,9 @@ This WCT user package provides some Wire-Cell Toolkit components and support cod
 
 * Install
 
-This package is a Wire-Cell Toolkut User Package (WCUP) and installs in "the normal way".  It requires an installation of WCT
+This package provides a Wire-Cell Toolkit User Package (WCUP) building a WCT plugin library and it provides a python module.  It requires these two parts of a usual Wire-Cell Toolkit installation.
+
+** Install Wire-Cell Toolkit Plugin Library
 
 #+begin_example
   $ ./wcb configure --prefix=/path/to/install \
@@ -14,11 +16,26 @@ This package is a Wire-Cell Toolkut User Package (WCUP) and installs in "the nor
   $ ./wcb --alltests
 #+end_example
 
-Note, the installed ~pcbro~ library must be added to ~LD_LIBRARY_PATH~ and you may want to add ~pcbro~ cfg area.  Assuming these variables have already been configured for WCT itself:
+Note, the install library location must be added to ~LD_LIBRARY_PATH~ and you may want to add ~pcbro~ cfg area to ~WIRECELL_PATH~.  Assuming these variables have already been configured for WCT itself:
 
 #+begin_example
   $ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/install/lib
   $ WIRECELL_PATH=$WIRECELL_PATH:/path/to/pcbro/cfg
+#+end_example
+
+** Python module and CLI
+
+The ~pcbro~ package provides a ~wirecell.pcbro~ Python module and a CLI called as ~wirecell-pcbro~.  It is used for generating PCB anode "wires" files and for processing Garfield output into WCT response file.  It also provides various diagnostic plots.  It is most easily installed alongside the WCT Python modules.  Note, Python3 is required.
+
+#+begin_example
+  $ python3 -m venv venv
+  $ source venv/bin/activate
+
+  $ cd /path/to/wire-cell-toolkit/python
+  $ python -m pip install -e .  
+  
+  $ cd /path/to/pcbro/python
+  $ python -m pip install -e .
 #+end_example
 
 * Roadmap
@@ -35,7 +52,7 @@ The development roadmap for this package is roughly:
 - [ ] progress though field roadmap (below)
 
 - [ ] understand and fix the apparent wrap-around in SP data ([[https://github.com/brettviren/pcbro/issues/1][issue 1]])
-- [ ] job configuration to save ADC-level and SP-level data to Magnify files. ([[https://github.com/brettviren/pcbro/issues/2][issue 2]])
+- [X] job configuration to save ADC-level and SP-level data to Magnify files. ([[https://github.com/brettviren/pcbro/issues/2][issue 2]])
 - [ ] data reduction.  This needs some serious thought and is mostly in the core of WCT.
 
 ** Field Roadmap
@@ -48,16 +65,20 @@ ideal.
 
 Quick hack to get something likely better than using PDSP response.
 
-- [X] calculate 2D fields for a special slice through hole diameters and assuming one strip universe.  This can use the "many wire" trick and Garfield.
-- [ ] convert one-strip output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
-- [ ] calculate 2D fields for a special slice through hole diameters and assuming multiple strips in the universe.  This may need the "many wire" trick with Garfield++ or neBEM with Garfield++.
-- [ ] convert multi-strip output to WCT ~.json.bz2~ file (save to ~wire-cell-data~)
+- [X] calculate 2D fields at various radial positions for a single-hole universe using the "many wire" trick and Garfield.
+- [X] parse this to produce responses at two "slices" for each plane
+- [X] generate WCT ~.json.bz2~ files with choice of which slices to select or average over
+- [ ] save to ~wire-cell-data~
+  - [ ] understand/fix apparent unipolar contribution to neighbor strips for paths in the shared hole.
+- [ ] develop new 2D calculation with Garfield++
+  - many-wire approximation
+  - neBEM based geometry
 
 *** 3D fields + 2D WCT sim+sigproc
 
 Uses existing WCT unchanged.
 
-- [ ] calculate 3D fields with realistic hole pattern
+- [ ] calculate 3D fields with realistic hole pattern (Garfield++/neBEM?, Garfield++/COMSOL?, pure COMSOL?)
 - [ ] calculate response functions for paths starting on a square grid based on the usual 6 impact positions.  In one dimension/plane these span impacts and the other these span "slices" across the strip.  This tries to exploit the orthogonal symmetry of the PCB anode.  In general, (eg with wire planes) we need one set of paths per plane.
 - [ ] for each plane, marginalize the response functions over the slice dimension to produce 2D response functions that may be used in current WCT simulation and sigproc
 
@@ -71,7 +92,9 @@ This has two possible branches of development
 - [ ] develop full 3D simulation as an MC using Garfield++.  Some concerns: too slow? not GPU'able? requires us to get deeper Garfield++ experience.
 
 
-* Tests
+* Using PCBro
+
+This goes through some basic programs to exercise parts of PCBro.
 
 ** Basic raw data decoding
 
@@ -109,21 +132,10 @@ directory and pcbro's ~cfg/~, eg:
 
 ** Wires 
 
-PCB anode of course has strips but for sigproc we don't care about
-actual geometry and just need to gives conductor ordering.  PCBro has
-a WCT-like Python package which generates a "wire" file.
+PCB anode of course has strips but for sigproc we don't care about actual geometry and just need to gives conductor ordering.  PCBro has a WCT-like Python package which generates a "wire" file.
 
 
 #+begin_example
-  $ python -m venv venv
-  $ source venv/bin/activate
-
-  $ cd /path/to/wire-cell-toolkit/python
-  $ pip install -e .  
-  
-  $ cd /path/to/pcbro/python
-  $ pip install -e .
-
   $ wirecell-pcbro gen-wires pcbro-wires.txt
   $ wirecell-util convert-oneside-wires pcbro-wires.txt pcbro-wires.json.bz2
 #+end_example
@@ -133,9 +145,7 @@ The resulting ~.json.bz2~ file should go in a directory listed in your
 
 ** WCT decoding
 
-A PCB anode ~.bin~ file can be read by WCT, decoded and written to a
-Numpy ~.npz~ array file.  You can then plot the result with ~matplotlib~.
-For example:
+A PCB anode ~.bin~ file can be read by WCT, decoded and written to a Numpy ~.npz~ array file.  You can then plot the result with ~matplotlib~.  For example:
 
 #+begin_example
   $ wire-cell -l stdout -L debug -l junk.log:debug \
@@ -148,7 +158,7 @@ For example:
   In [3]: plt.savefig("raw-31.png")
 #+end_example
 
-or
+or from the CLI
 
 #+begin_example
   $ wirecell-pcbro plot-one -t 31 -a 0.2 -T bin2npz -o raw-31.png raw.npz
@@ -156,17 +166,25 @@ or
 
 [[file:raw-31.png]]
 
-*N.B.: by default the induction plane data is duplicated in order to match WCT's expectation of 3 planes and to allow testing of different induction response functions.*
+*N.B.: by default the induction plane data is duplicated in order to match WCT's expectation of 3 planes and to allow simultaneous testing of different induction response functions.*
 
 ** WCT sigproc
 
 The raw ~.bin~ data can be read in, decoded, run through WCT signal processing and the result written to an Numpy ~.npz~ array file
 
-*WARNING* this is currently using a lot of bogus configuration ripped from PDSP and is surely wrong.  It just proves the mechanical parts are more or less working.  See [[Roadmap]]
+*WARNING:* while the fields are being validated these results do not represent the ultimate efficacy.  See [[Roadmap]] for relevant details.  Until these are finalized, there will not be any officially, versioned field files but the latest can be retrieved:
+
+#+begin_example
+  $ wget https://www.phy.bnl.gov/~bviren/tmp/pcbro/pcbro-response-latest.tar
+  $ tar -C pcbro/cfg pcbro-response-latest.tar
+#+end_example
+
+It includes several different response files and their corresponding display as PNG files.  A particular response file may be given as an option to the ~wire-cell~ CLI:
 
 #+begin_example
   $ wire-cell -l stdout -L debug -l junk.log:debug \
               -A infile=<file.bin> -A outfile=<file.npz> \
+              -A resp=pcbro-response-indslc-colave.json.bz2 \
               -c cfg/cli-bin-sp-npz.jsonnet
 
   $ ipython --pylab
@@ -175,7 +193,7 @@ The raw ~.bin~ data can be read in, decoded, run through WCT signal processing a
   In [3]: plt.savefig("trig31-gauss.png")
 #+end_example
 
-or
+or from the CLI:
 
 #+begin_example
   $ wirecell-pcbro plot-one -t 31 -a 0.2 -T gauss0 -o sig-31.png sig.npz
@@ -185,8 +203,7 @@ or
 [[file:sig-31.png]]
 
 
-  *N.B. the above uses ProtoDUNE-SP detector response functions and does not represent the ultimate quality.* It also *artificially duplicates* the data from the induction channels 65-128 (plane ident 0) into channels 129-192 (plane ident 1) in order to apply the two different sets of *PDSP induction response functions*
-
+*N.B. again, this does not represent ultimate capabilities as the fields are still being understood.*  The two copies of the induction plane are deconvolved with a different field slice.
 
 ** Multiple input files
 
@@ -219,15 +236,6 @@ The ~PcbroRawSource~ may be configured with one or a sequence of input ~.bin~ fi
 
 ** Quick and dirty hand scanner
 
-Using a PDF viewer that auto refreshes such as ~evince~ or ~atril~ you can make a super quick and dirty automated scanner:
-
-#+begin_example
-  $ evince junk.pdf &
-  $ for n in {0..200}; do wirecell-pcbro plot-one -t $n -a 0.2 -T gauss0 -o junk.pdf sig.npz; echo $n; done
-#+end_example
-
-** Less quick and dirty
-
 Process many ~.bin~ into a ~.npz~ file and then make a reduced ~.npz~ file by applying a threshold on activity.  The activity is calculated by subtracting a per-channel median and then summing all values above a minimum (def=5) and if the sum is larger than the threshold (default=5000) then save the array to the output ~.npz~.  You can then make a multi-page PDF.
 
 #+begin_example
@@ -236,4 +244,14 @@ Process many ~.bin~ into a ~.npz~ file and then make a reduced ~.npz~ file by ap
 #+end_example
 
 
+** Magnify support
+
+A standard WCT validation and debugging tool it Magnify.  One can produce a Magnify file from a select trigger which will hold the original raw and signal processed output.
+
+#+begin_example
+  $ wire-cell -A resp=pcbro-response-indslc-colave.json.bz2 \
+              -A start=32 -A triggers=1 \
+              -A infile=<file.bin> -A outfile=<file.root> \
+              -c cfg/cli-bin-sp-mag.jsonnet
+#+end_example
 

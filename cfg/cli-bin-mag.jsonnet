@@ -11,7 +11,18 @@ local g = import "pgraph.jsonnet";
 // infile may also be an array
 function(infile, outfile, nplanes=3) {
 
-    local graph = pcbro.bin_mag(infile, outfile, "orig0", nplanes),
+    local tag = "orig0",
+
+    local det = pcbro.detector(),
+
+    // Return graph to convert from pcbro .bin to .root
+    local graph = g.pipeline([
+        pcbro.rawsource("input", infile, tag, nplanes),
+        pcbro.tentoframe("tensor-to-frame", tensors=[pcbro.tensor(tag)]),
+        pcbro.magnify("output", outfile, true, [ tag ], det.anode),
+        pcbro.dumpframes("dumpframes")
+    ]),
+
     local app = {
         type: 'Pgrapher',
         data: {
