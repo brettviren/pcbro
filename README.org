@@ -176,7 +176,7 @@ The raw ~.bin~ data can be read in, decoded, run through WCT signal processing a
 
 #+begin_example
   $ wget https://www.phy.bnl.gov/~bviren/tmp/pcbro/pcbro-response-latest.tar
-  $ tar -C pcbro/cfg pcbro-response-latest.tar
+  $ tar -C pcbro/cfg -xf pcbro-response-latest.tar
 #+end_example
 
 It includes several different response files and their corresponding display as PNG files.  A particular response file may be given as an option to the ~wire-cell~ CLI:
