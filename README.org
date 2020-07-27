@@ -168,6 +168,109 @@ or from the CLI
 
 *N.B.: by default the induction plane data is duplicated in order to match WCT's expectation of 3 planes and to allow simultaneous testing of different induction response functions.*
 
+** Fields
+
+PCB anode fields are calculated by GARFIELD by Yichen and the 2D
+geometry used is shown in this figure also from Yichen:
+
+#+ATTR_ORG: :width 800
+[[file:docs/geometry-2D.png]]
+
+The two planes are conceptually semi-infinite but only the indicated
+ranges are considered.  In order to use GARFIELD's analytic 2D
+calculation these planes are composed of 400 coplanar 1D "micro-wires"
+of diameter 150um.  GARFIELD has a limit on the number of "sensitive"
+conductors and so four calculations are required to span the choice of
+*R* (right, positive) and *L* and the choice of *a* (nearest hole) and *b*
+regions.  These four are needed for each choice of drift path which is
+characterized by its (positive, on *R* side) radius.  The results are in
+the form of files with these values encoded in their names:
+
+#+begin_example
+<radius>_[ind|col]_[L|R]_[a|b].dat
+#+end_example
+
+PCBro provides scripts to map these data to the real geometry.  This mapping is illustrated in the following diagram
+
+#+ATTR_ORG: :width 600
+[[file:docs/collection-impacts-detail.svg]]
+
+For each strip, numbered -5, ..., 0, ..., 5, one of its six
+strip-impact positions (SIP) is considered.  Along the strip two
+"slices" are considered which are defined as lines bisecting a full
+hole on the strip.  For each of these objects the real geometry is
+examined to identify which hole is nearest to the SIP along the slice
+(ie, the hole into which the electron path should fall) and the radial
+location of the path starting point.
+
+The matching GARFIELD data set is then located and mapped to the real
+geometry so that the subset of micro-wires that overlap with
+(non-hole) electrode region of strip0 may be selected.  Their
+responses are summed to provide the response on strip0 to a path at
+that strip's SIP and for that slice.
+
+The final response set can be calculated as an average over the two
+slices.  Final responses keeping the slices separate may also be produced.
+
+*** Preparing
+
+A number of GARFIELD runs were performed as the process was debugged
+and only a certain subset of files should be considered.  The "good"
+files from them may be collected with this ~tar~ command:
+
+#+begin_example
+  $ tar -cvf garfield-pcb.tar \
+   pcb_try/{0.0,0.5,1.0,1.5,2.0,2.5}_ind_R_{a,b}.dat \
+   pcb_try/{0.5,1.0,1.5}_col_R_{a,b}.dat \
+   pcb_try_add/{0.0,0.2,0.3,0.7,0.8,1.2,1.3,1.7}_col_R_{a,b}.dat \
+   pcb_try_Lcorr/{0.0,0.2,0.3,0.5,0.7,0.8,1.0,1.2,1.3,1.5,1.7,2.0,2.5}_{col,ind}_L_{a,b}.dat
+  $ tar -tvf garfield-pcb.tar |wc -l
+  86
+#+end_example
+
+Summary of the directories:
+
+- ~pcb_try~ :: initial set containing radii needed for induction strips.
+  Good for ~ind_R~ and some ~col_R~.
+- ~pcb_try_add~ :: extended set containing radii needed for collection
+  strips but with a geometry bug found which effects only *L* data sets.
+  Good for ~col_R~.
+- ~pcb_try_Lcorr~ :: rerun of above fixing a bug in geometry that only
+  affects *L* collection.  Good for ~col_L~ and ~ind_L~
+
+A WCT ~.json.bz2~ response file may be produced with:
+
+#+begin_example
+$ wirecell-pcbro convert-garfield \
+  [...slice...options...] \
+  garfield-pcb.tar pcbro-response-<name>.json.bz2
+#+end_example
+
+This should run with no errors about "No response for plane ...".
+
+The ~slice options~ determine which slice or an average of both slices
+are used for a given plane.  The provided script [[file:scripts/gen-response.sh][gen-response.sh]] will
+iterate over a few combinations producing these ~<name>~ files with the
+given slice assignments:
+
+| ~<name>~         | U     | V     | W     |
+| ~indslc-colave~  | 0     | 1     | <0,1> |
+| ~indave-colave~  | <0,1> | <0,1> | <0,1> |
+| indave-colscl0 | <0,1> | <0,1> | 0     |
+| indave-colscl1 | <0,1> | <0,1> | 1     |
+
+Where "<0,1>" means average over the two slices for induction (U and
+V) or collection (W).
+
+All these combinations may be produced, including generating some diagnostic plots with:
+
+#+begin_center
+  $ ./scripts/gen-response.sh
+  $ ls cfg/pcbro-response-*
+#+end_center
+
+See next section for downloading the results of this script.
+
 ** WCT sigproc
 
 The raw ~.bin~ data can be read in, decoded, run through WCT signal processing and the result written to an Numpy ~.npz~ array file
