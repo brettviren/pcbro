@@ -1,0 +1,99 @@
+#+title: PCBro Field Updates
+#+author: Brett Viren
+#+latex_header: \usepackage{xspace}
+#+latex_header: \usepackage{libertine}
+#+latex_header: \usepackage{fontawesome}
+#+latex_header: \usetheme{Boadilla}
+#+latex_header: \setbeamertemplate{navigation symbols}{}
+#+latex_header: \hypersetup{colorlinks}
+#+latex_header: \setbeamerfont{alerted text}{series=\bfseries}
+#+options: ':t
+
+* Sampling GARFIELD response data sets
+
+#+begin_center
+~<radius>_[col|ind]_[L|R]_[a|b].dat~
+#+end_center
+
+** fig                                                                :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.3
+   :END:
+[[file:collection-impacts-detail.pdf]]
+
+Collection mapping
+
+** blah                                                               :BMCOL:
+   :PROPERTIES:
+   :BEAMER_col: 0.7
+   :END:
+
+[[file:geometry-2D.png]]
+\footnotesize
+- GARFIELD 2D: single-hole universe with planes made of "micro-wires".
+- Map GARFIELD hole onto nearest real hole for each strip/impact/slice.
+- Select GARFIELD "micro-wires" which overlap with strip0 electrode in
+  given slice.
+
+** 
+
+- Thanks Yichen for lots of revisions of GARFIELD runs.
+- More details at: \scriptsize https://github.com/brettviren/pcbro#fields
+
+
+* PCBro (GAR)Field Updates
+
+- Four different WCT ~.json.bz2~ response files
+
+- Response as individual or average of two "slices" along strip direction.
+
+- File labels:
+  - ~indave~: both U and V are average of two induction slices
+  - ~colave~: W is average of two collection slices
+  - ~indslc~: U is induction slice 0, V is induction slice 1
+  - ~colslcN~: W is collection slice N
+
+
+#+begin_center
+\tiny
+https://www.phy.bnl.gov/~bviren/tmp/pcbro/pcbro-response-latest.tar
+#+end_center
+
+* ~indave-colave~: U:average, V:average, W:average
+
+#+ATTR_LATEX: :height 7.5cm :center
+[[file:pcbro-response-indave-colave.png]]
+#+ATTR_LATEX: :height 7.5cm :center
+[[file:pcbro-response-indave-colave-zoom.png]]
+
+* ~indslc-colave~: U:slice0, V:slice1, W:average
+
+#+ATTR_LATEX: :height 7.5cm :center
+[[file:pcbro-response-indslc-colave.png]]
+#+ATTR_LATEX: :height 7.5cm :center
+[[file:pcbro-response-indslc-colave-zoom.png]]
+
+
+* ~indave-colslc0~: U:average, V:average, W:slice 0
+
+#+ATTR_LATEX: :height 7.5cm :center
+[[file:pcbro-response-indave-colslc0.png]]
+#+ATTR_LATEX: :height 7.5cm :center
+[[file:pcbro-response-indave-colslc0-zoom.png]]
+
+
+* ~indave-colslc1~: U:average, V:average, W:slice 1
+
+#+ATTR_LATEX: :height 7.5cm :center
+[[file:pcbro-response-indave-colslc1.png]]
+#+ATTR_LATEX: :height 7.5cm :center
+[[file:pcbro-response-indave-colslc1-zoom.png]]
+
+* Future work
+
+- See what (if any) work is needed to use these fields in WCT sim 
+- Apply drifires/Garfield++ to PCB anode:
+  - Analytic + "micro-wires" trick? I'll probably skip this...
+  - 2D neBEM with explicit slice geometry
+  - 3D neBEM with real geometry + many-slice average
+  - 3D neBEM with new 3D sim (?)

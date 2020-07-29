@@ -10,3 +10,5 @@ __pycache__
 junk.*
 *.pdf
 *.npz
+auto
+latexmk-out
