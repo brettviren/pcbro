@@ -91,9 +91,9 @@ https://www.phy.bnl.gov/~bviren/tmp/pcbro/pcbro-response-latest.tar
 
 * Future work
 
-- See what (if any) work is needed to use these fields in WCT sim 
+- See what (if any) work is needed to use these fields in WCT sim.
 - Apply drifires/Garfield++ to PCB anode:
-  - Analytic + "micro-wires" trick? I'll probably skip this...
-  - 2D neBEM with explicit slice geometry
-  - 3D neBEM with real geometry + many-slice average
-  - 3D neBEM with new 3D sim (?)
+  - Analytic + "micro-wires" trick? (probably skip this...)
+  - 2D neBEM with explicit slice geometry (probably skip this...)
+  - 3D neBEM with real geometry + many-slice average (likely will try)
+  - 3D neBEM with new 3D WCT sim (only if a need is identified)
