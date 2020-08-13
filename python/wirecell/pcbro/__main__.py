@@ -9,6 +9,8 @@ import click
 from wirecell import units
 
 import wirecell.pcbro.garfield as pcbgf
+import wirecell.pcbro.draw as pcbdraw
+import wirecell.pcbro.holes as pcbholes
 
 def sourceme(source):
     '''
@@ -111,13 +113,21 @@ def plot_garfield(output, source):
     source = sourceme(source)
     pcbgf.plots(source, output)
 
-@cli.command("plot-garfield-check")
-@click.option("-o","--output", default="garfield-plots.pdf", help="Output PDF file")
-def plot_garfield_check(output):
+@cli.command("plot-holes")
+@click.option("-s", "--strips", default=5, help="Number of strips")
+@click.option("-p", "--plane", default="col", help="Plane to draw")
+@click.option("-o","--output", default="pcbro-holes.pdf", help="Output PDF file")
+def plot_holes(strips, plane,output):
     '''
     Make some artwork which "obviously" shows the integration map is correct.
     '''
-    pcbgf.plots_geom(output)
+    if plane=="ind":
+        pg = pcbholes.Induction()
+    elif plane=="col":
+        pg = pcbholes.Collection()
+    else:
+        raise RuntimeError(f'no such plane {plane}')
+    pcbdraw.holes_planegeometry(pg, pdf_file=output, strips=range(-strips, strips+1))
 
 
 @cli.command("gen-wires")

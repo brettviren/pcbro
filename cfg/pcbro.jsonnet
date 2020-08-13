@@ -72,6 +72,28 @@ local tools = tools_maker(params);
         ret: sp.make_sigproc(detector.anode)
     }.ret,
 
+    sim(detector) :: {
+        local sim_maker = import "pgrapher/common/sim/nodes.jsonnet",
+        local sim = sim_maker(detector.params, detector.tools),
+        local drifter = sim.drifter,
+        local bagger = sim.make_bagger(),
+        local ductor = sim.make_depotransform("ductor", detector.anode, detector.tools.pirs[0]),
+        local reframer = g.pnode({
+            type: 'Reframer',
+            name: 'reframer',
+            data: {
+                anode: wc.tn(detector.anode),
+                tags: [],
+                fill: 0.0,
+                tbin: detector.params.sim.reframer.tbin,
+                toffset: 0,
+                nticks: detector.params.sim.reframer.nticks,
+            },
+        }, nin=1, nout=1),
+        local digitizer = sim.digitizer(detector.anode, name="digitizer", tag="orig0"),
+        ret: g.pipeline([drifter, bagger, ductor, reframer, digitizer])
+    }.ret,
+
     // return a magnify node
     magnify(name, filename, usetags, tags, anode ) :: g.pnode({
         type: "MagnifySink",

@@ -26,7 +26,7 @@ gar2wct () {
         return
     fi
     echo "generating: $out"
-    wirecell-pcbro convert-garfield -U $u -V $v -W $w $garfield_tarfile $out
+    wirecell-pcbro convert-garfield -U $u -V $v -W $w $garfield_tarfile $out || exit 1
 }
 
 plot () {
@@ -38,9 +38,9 @@ plot () {
     out="$cfgdir/$out"
 
     local out1="${out}.png"
-    wirecell-sigproc plot-response --region 2.5 --trange  0,85 $inf $out1
+    wirecell-sigproc plot-response --region 2.5 --trange  0,85 $inf $out1 || exit 1
     local out2="${out}-zoom.png"
-    wirecell-sigproc plot-response --region 2.5 --trange 55,85 $inf $out2
+    wirecell-sigproc plot-response --region 2.5 --trange 55,85 $inf $out2 || exit 1
 }
 
 

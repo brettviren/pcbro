@@ -18,6 +18,7 @@ import numpy
 from wirecell import units
 #fixme: this cross-package import indicates we should refactor.
 import wirecell.sigproc.garfield as wctgf
+from wirecell.pcbro import holes
 
 def parse_filename(filename):
     '''Try to parse whatever data is encoded into the file name.
@@ -62,7 +63,6 @@ def load(source):
             s = " ".join(["%s:{%s}"%(k,k) for k in keys])
             print (s.format(**dat))
 
-        
 def dat2arrs(datfilename):
     #fninfo = parse_filename(datfilename)
     gen = wctgf.split_text_records(open(datfilename,'rb').read().decode())
@@ -195,6 +195,8 @@ class Ripem(object):
             print(f'radius:{radius} plane:{plane}, keys:{keys}')
             raise
         assert(len(rip.resps)>0)
+        if span[1] < span[0]:
+            span[0],span[1] = span[1],span[0]
         res = list()
         for rr in rip.resps:
             if rr.ypos >= span[0] and rr.ypos <= span[1]:
@@ -275,76 +277,6 @@ class Ripem(object):
 #  'x', 'y']
 
 
-# Each strip impact response is calcualted from a number of RIPs and
-# on each RIP we select a range of "micro wire" responses.
-@dataclass
-class Siprip:
-    'A radius impact and ranges'
-    rip: float                  # the impact radius
-    cen: float                  # center of hole along slice, relative to strip centerline
-    sign: float                 # +1 if rip is "up", -1 if we "flip" the hole
-    ranges: List                # list of pairs of float
-
-@dataclass
-class Sip:
-    'A strip impact position and its rip and ranges'
-    impact: float               # impact position
-    srs: List[Siprip]          # contributing Siprips
-
-@dataclass
-class Strip:
-    'A strip worth of responses'
-    number: int                 # Strip over which a path drifts (in {-5,5})
-    dslice: float
-    sips: List[Sip]             # ordered list of strip impact positions.
-
-
-
-def fix_ranges(rr):
-    ret = list()
-    for r in rr:
-        if r[0] > r[1]:
-            r[0],r[1] = r[1],r[0]
-        ret.append(r)
-        # it makes no sense to ask for a range inside the hole
-        assert (abs(r[0]) >= 1.0 and abs(r[1]) >= 1.0)
-
-    return numpy.asarray(ret)
-
-def xxx_strips(strips_data, slice_size):
-    strips = list()
-    for istrip, snum in enumerate(range(-5,6)):
-        strip_data = strips_data[istrip]
-        slc0 = strip_data.slices[0]
-        slc1 = strip_data.slices[1]
-        sips = list()
-        for isip in range(6):
-            isip0 = slc0.sips[isip]
-            isip1 = slc1.sips[isip]
-
-            ranges0 = fix_ranges(isip0.wir(snum))
-            ranges1 = fix_ranges(isip1.wir(snum))
-
-            s = Sip(isip*0.5,
-                    [Siprip(isip0.rip, isip0.cen, isip0.dir, ranges0),
-                     Siprip(isip1.rip, isip1.cen, isip1.dir, ranges1)])
-            sips.append(s)
-        strips.append(Strip(snum, slice_size, sips))
-    return strips
-    
-
-sip_col_slice = 2.5
-sip_ind_slice = 3.3/2.0
-
-def col_strips():
-    from . import holes
-    strips = holes.get_strips("col")
-    return xxx_strips(strips, sip_col_slice)
-def ind_strips():
-    from . import holes
-    strips = holes.get_strips("ind")
-    return xxx_strips(strips, sip_ind_slice)
-    
 
 def draw_strip(strip):
     import matplotlib.pyplot as plt
@@ -403,9 +335,8 @@ class Sipem(object):
     def __init__(self, ripem):
         self.ripem = ripem
 
-        self.strips = dict(
-            col = {s.number:s for s in col_strips()},
-            ind = {s.number:s for s in ind_strips()})
+        self.planes = dict(col = holes.Collection(),
+                           ind = holes.Induction())
 
     def wire_region_pos(self, plane, snum):
         'Return position of strip'
@@ -430,19 +361,15 @@ class Sipem(object):
         '''
         Return response function for plane/strip and impact on one slice or average over slices.
         '''
-        #print (f'Sipem.response: plane:{plane}, strip:{strip}, sip:{sip}')
-        strip = self.strips[plane][strip]
-        sips = [s for s in strip.sips if s.impact == sip]
-        #print (f'response sips: {sips}')
-        assert(len(sips) == 1)
-        srs = sips[0].srs
+        pholes = self.planes[plane];
         res = list()
-        for islice in slices:
-            sr = srs[islice]
-            for span in sr.ranges:
-                r = self.ripem.responses(plane, sr.rip, span)
+        for slc in slices:
+            #print (f'plane:{plane} strip:{strip} slc:{slc} sip:{sip}')
+            sipobj = pholes.Sip(strip, slc, sip)
+            for wr in sipobj.wirs:
+                r = self.ripem.responses(plane, sipobj.rip, wr)
                 if len(r.shape) != 2:
-                    print(f'No response for plane:{plane} rad:{sr.rip} span:{span}')
+                    print(f'No response for plane:{plane} rad:{sipobj.rip} span:{wr}')
                     continue
                 assert(r.shape[0])
                 r = r.sum(axis=0)
@@ -450,6 +377,7 @@ class Sipem(object):
         res = numpy.asarray(res)
         res = res.sum(axis=0)
         res /= len(slices)
+        #print (f'plane:{plane} res.shape:{res.shape} res.size:{res.size}')
         return res
     
     def asarray(self, plane, slices=[0,1]):
@@ -490,7 +418,7 @@ class Sipem(object):
             ret = list()
             for istrip in range(-5,6):
                 for isip in range(6):
-                    sip = isip*0.5*units.mm
+                    sip = -2.5 + isip*0.5*units.mm
                     pos = self.wire_region_pos(pname, istrip)
                     pitchpos = float(pos[0]) + sip
                     res = self.response(pname, istrip, sip, slices)
@@ -567,36 +495,6 @@ class Sipem(object):
                 raise ValueError(f"unsupported strategy: {strategy}")
         return ret
 
-def plots_geom(pdf_file="pcbro-garfield-geom.pdf"):
-    from matplotlib.backends.backend_pdf import PdfPages
-    import matplotlib.pyplot as plt
-    with PdfPages(pdf_file) as pdf:
-
-        def final(tit,xtit=None,ytit='transverse [mm]'):
-            plt.title(tit)
-            if xtit: plt.xlabel(xtit)
-            if ytit: plt.ylabel(ytit)
-            pdf.savefig(plt.gcf())
-            plt.close();
-            
-
-        for one in ind_strips():
-            draw_strip(one)
-        final(f'ind strips')
-
-
-        for one in ind_strips():
-            draw_strip(one)
-            final(f'ind strip {one.number}')
-
-        for one in col_strips():
-            draw_strip(one)
-        final(f'col strips')
-
-        for one in col_strips():
-            draw_strip(one)
-            final(f'col strip {one.number}')
-
 def plots(source, pdf_file="pcbro.pdf"):
     from matplotlib.backends.backend_pdf import PdfPages
     import matplotlib.pyplot as plt
@@ -634,23 +532,3 @@ def plots(source, pdf_file="pcbro.pdf"):
                     plt.close();
 
             
-# def convert(source, outputfile = "wire-cell-garfield-fine-response.json.bz2",
-#             average=False, shaped=False):
-#     '''Convert a source (dir or tar) of Garfield file pack into an output
-#     wire cell field response file.
-
-#     See also wirecell.sigproc.response.persist
-#     See also wirecell.sigproc.ResponseFunction
-#     '''
-
-#     ripem = Ripem(source)
-#     sipem = Sipem(ripem)
-    
-
-#     rflist = sipem.asrflist(strategy="slice")
-#     if shaped:
-#         rflist = [d.shaped() for d in rflist]
-#     if average:
-#         rflist = wctrs.average(rflist)
-#     wctrs.write(rflist, outputfile)
-

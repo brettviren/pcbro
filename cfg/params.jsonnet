@@ -20,10 +20,21 @@ base {
 
     files: super.files {
         wires: "pcbro-wires.json.bz2",
-        fields: [
-            // for now, use totally bogus fields!
-            "ub-10-half.json.bz2"
-        ],
+        // must provide "fields" array 
     },
+
+    sim: super.sim {
+        // fixed time mode
+        fixed: true,
+    },
+
+    sys_status: false,
+    sys_resp: {
+        // I don't know what this does.
+        start: 0.0, // -10 * wc.us,
+        magnitude: 1.0,
+        time_smear: 1.0 * wc.us,
+    },
+
 }
 
