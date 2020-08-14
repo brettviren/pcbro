@@ -57,7 +57,7 @@ def holes_planegeometry(pg, pdf_file="pcbro-holes.pdf",
                         # "w" are measured w.r.t. ciricle center in
                         # GARFIELD geometry.  "wr" is then the ranges
                         # in real geometry.
-                        wr = d*w+cy
+                        wr = w+cy
                         marks.append(((cx + side*(range_spacing + isip*sip_spacing), cline_y + sip.sip), d, wr))
 
         for circ in set(ghost_circs):

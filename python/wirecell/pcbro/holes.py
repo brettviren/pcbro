@@ -89,7 +89,7 @@ class PlaneGeometry(object):
             if rip_sign == mwr_sign.all():
                 flip = -1
             dirs.append(flip)
-            wirs.append(flip*mwr)
+            wirs.append(mwr)
         return Sip(sip,rip,cen,numpy.asarray(dirs),numpy.asarray(wirs))
             
 
