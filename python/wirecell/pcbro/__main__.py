@@ -42,11 +42,13 @@ def cli(ctx):
 @click.option("-f", "--format", default="json.bz2",
               type=click.Choice(['json', 'json.gz', 'json.bz2']),
               help="Set output file format")
+@click.option("-b", "--basename", default="pcbro-response",
+              help="Set basename for output files")
 @click.argument("garfield-fileset")
-@click.argument("wirecell-field-response-basename")
+
 def convert_garfield(origin, speed, normalization, zero_wire_locs,
                      format,
-                     garfield_fileset, wirecell_field_response_basename):
+                     garfield_fileset, basename):
     '''
     Produce variants of WCT field files from tarfile of Garfield output text files.
 
@@ -71,9 +73,14 @@ def convert_garfield(origin, speed, normalization, zero_wire_locs,
     ripem = gar.Ripem(sourceme(garfield_fileset))
     sipem = gar.Sipem(ripem)
 
+    fnames = list()
     for name, slcs in slices.items():
         fr = sipem.inschema(speed, origin, slcs['u'], slcs['v'], slcs['w'])
-        per.dump(wirecell_field_response_basename + '-' + name + '.' + format, fr)
+        fname = basename + '-' + name + '.' + format
+        per.dump(fname, fr)
+        print (fname)
+        fnames.append(fname)
+    print('\n'.join(fnames))
 
     # rflist = sipem.asrflist(strategy)
     # print("made %d response functions" % len(rflist))

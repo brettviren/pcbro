@@ -1,6 +1,21 @@
 #+title: pcbro: Wire-Cell PCB Anode Readout Package
 
-This WCT user package provides some Wire-Cell Toolkit components and support code for the PCB anode readout (pcbro) R&D and specifically its use in the 50L test detector.
+This WCT "user package" provides some Wire-Cell Toolkit components and support code for the PCB anode readout (pcbro) R&D and specifically its use in the 50L test detector.
+
+Main features:
+
+C++ 
+- 50L detector data decoding (stand-alone)
+- WCT component to ingest 50L data
+
+Python module/CLI
+- Generate WCT "wires" file
+- Convert GARFIELD responses to WCT format
+- Diagnostic/debugging plots
+
+Jsonnet/JSON
+- WCT configuration to run PCB anode data, signal processing, simulation and other WCT jobs.
+- Generated WCT wires and response files generated
 
 * Install
 
@@ -36,6 +51,8 @@ The ~pcbro~ package provides a ~wirecell.pcbro~ Python module and a CLI called a
   
   $ cd /path/to/pcbro/python
   $ python -m pip install -e .
+
+  $ wirecell-pcbro --help
 #+end_example
 
 * Roadmap
@@ -63,16 +80,14 @@ ideal.
 
 *** 2D response + 2D WCT
 
-Quick hack to get something likely better than using PDSP response.
+Uses GARFIELD "micro wire" approximation
 
 - [X] calculate 2D fields at various radial positions for a single-hole universe using the "many wire" trick and Garfield.
 - [X] parse this to produce responses at two "slices" for each plane
 - [X] generate WCT ~.json.bz2~ files with choice of which slices to select or average over
-- [ ] save to ~wire-cell-data~
-  - [ ] understand/fix apparent unipolar contribution to neighbor strips for paths in the shared hole.
-- [ ] develop new 2D calculation with Garfield++
-  - many-wire approximation
-  - neBEM based geometry
+- [ ] save "official" response files to ~cfg/~
+- [X] understand/fix apparent unipolar contribution to neighbor strips for paths in the shared hole.
+
 
 *** 3D fields + 2D WCT sim+sigproc
 
@@ -190,7 +205,12 @@ the form of files with these values encoded in their names:
 <radius>_[ind|col]_[L|R]_[a|b].dat
 #+end_example
 
-PCBro provides scripts to map these data to the real geometry.  This mapping is illustrated in the following diagram
+PCBro provides scripts to map these data to the real geometry.  This
+mapping is illustrated in the following diagram.  *CAVEAT* the impact
+positions *must* be taken on the negative side of the strip centerline
+rather than as drawn as WCT sim (impact transform) bakes in this
+convention.  The ~wirecell-pcbro convert-garfield~ command uses the
+correct convention.
 
 #+ATTR_ORG: :width 600
 [[file:docs/collection-impacts-detail.svg]]
@@ -241,41 +261,43 @@ Summary of the directories:
 A WCT ~.json.bz2~ response file may be produced with:
 
 #+begin_example
-$ wirecell-pcbro convert-garfield \
-  [...slice...options...] \
-  garfield-pcb.tar pcbro-response-<name>.json.bz2
+$ wirecell-pcbro convert-garfield garfield-pcb.tar 
 #+end_example
 
 This should run with no errors about "No response for plane ...".
+It produces a number of JSON files
 
-The ~slice options~ determine which slice or an average of both slices
-are used for a given plane.  The provided script [[file:scripts/gen-response.sh][gen-response.sh]] will
-iterate over a few combinations producing these ~<name>~ files with the
-given slice assignments:
+- ~pcbro-response-avg.json.bz2~
+- ~pcbro-response-slc0.json.bz2~
+- ~pcbro-response-slc1.json.bz2~
 
-| ~<name>~         | U     | V     | W     |
-| ~indslc-colave~  | 0     | 1     | <0,1> |
-| ~indave-colave~  | <0,1> | <0,1> | <0,1> |
-| indave-colscl0 | <0,1> | <0,1> | 0     |
-| indave-colscl1 | <0,1> | <0,1> | 1     |
+The trailing file name indicates which slices are left distinct or
+averaged.
 
-Where "<0,1>" means average over the two slices for induction (U and
-V) or collection (W).
-
-All these combinations may be produced, including generating some diagnostic plots with:
+- avg :: U and V are identical and both average over two inductions slices.
+- slc0 :: U is average over both slices V is induction slice 0, W is collection slice 0.
+- slc1 :: U is average over both slices V is induction slice 1, W is collection slice 1.
 
 #+begin_center
   $ ./scripts/gen-response.sh
-  $ ls cfg/pcbro-response-*
+  $ ls pcbro-response-*
+  $ feh --keep-zoom-vp --force-aliasing pcbro-response-slc[01]-zoom.png
 #+end_center
 
 See next section for downloading the results of this script.
+The PNGs produced are committed:
+
+- [[docs/pcbro-response-avg.png]]
+- [[docs/pcbro-response-slc0.png]]
+- [[docs/pcbro-response-slc1.png]]
+
+
 
 ** WCT sigproc
 
 The raw ~.bin~ data can be read in, decoded, run through WCT signal processing and the result written to an Numpy ~.npz~ array file
 
-*WARNING:* while the fields are being validated these results do not represent the ultimate efficacy.  See [[Roadmap]] for relevant details.  Until these are finalized, there will not be any officially, versioned field files but the latest can be retrieved:
+*Caveat:* while the fields are being validated these results do not represent the ultimate efficacy.  See [[Roadmap]] for relevant details.  Until these are finalized, there will not be any officially, versioned field files but the latest can be retrieved:
 
 #+begin_example
   $ wget https://www.phy.bnl.gov/~bviren/tmp/pcbro/pcbro-response-latest.tar
@@ -287,7 +309,7 @@ It includes several different response files and their corresponding display as 
 #+begin_example
   $ wire-cell -l stdout -L debug -l junk.log:debug \
               -A infile=<file.bin> -A outfile=<file.npz> \
-              -A resp=pcbro-response-indslc-colave.json.bz2 \
+              -A resp=pcbro-response-avg.json.bz2 \
               -c cfg/cli-bin-sp-npz.jsonnet
 
   $ ipython --pylab
@@ -352,7 +374,7 @@ Process many ~.bin~ into a ~.npz~ file and then make a reduced ~.npz~ file by ap
 A standard WCT validation and debugging tool it Magnify.  One can produce a Magnify file from a select trigger which will hold the original raw and signal processed output.
 
 #+begin_example
-  $ wire-cell -A resp=pcbro-response-indslc-colave.json.bz2 \
+  $ wire-cell -A resp=pcbro-response-avg.json.bz2 \
               -A start=32 -A triggers=1 \
               -A infile=<file.bin> -A outfile=<file.root> \
               -c cfg/cli-bin-sp-mag.jsonnet

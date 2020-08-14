@@ -423,7 +423,7 @@ class Sipem(object):
                     pitchpos = float(pos[0]) + sip
                     res = self.response(pname, istrip, sip, slices)
                     pr = PathResponse(res, pitchpos, 0.0)
-                    print(f'{pname} strip:{istrip} sip#:{isip} sip:{sip} ppos:{pitchpos}')
+                    #print(f'{pname} strip:{istrip} sip#:{isip} sip:{sip} ppos:{pitchpos}')
                     ret.append(pr)
             return ret
 
@@ -468,7 +468,7 @@ class Sipem(object):
                 pos = self.wire_region_pos("col", istrip)
                 ## RF.pos is (wirepos, pitchpos), pitchpos is relative to wire zero
 
-                print(f'strip:{istrip} sip#:{isip} sip:{sip} pos:{pos}')
+                #print(f'strip:{istrip} sip#:{isip} sip:{sip} pos:{pos}')
                 res = self.response("col", istrip, sip, [0,1])
                 rf = RF("w", istrip, (0.0, pos[0]), ls, res, sip)
                 ret.append(rf)
