@@ -10,7 +10,7 @@ local g = import "pgraph.jsonnet";
 
 
 
-function(infile, outfile, nplanes=3, start=32, triggers=1, resp='pcbro-response-default.json.bz2') {
+function(infile, outfile, nplanes=3, start=32, triggers=1, resp=pcbro.response_file) {
 
     // The tag of "raw" (pre-NF) frames.  It's used in several places
     // and effectively a hard-wired value.

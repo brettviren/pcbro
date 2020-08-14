@@ -7,7 +7,7 @@ local g = import "pgraph.jsonnet";
 //   --tla-str infile="file.bin" \
 //   --tla-str outfile="file.npz" \
 //   -c cli-bin2npz.jsonent [...]
-function(infile, outfile, tag="", nplanes=3, resp='pcbro-response-default.json.bz2') {
+function(infile, outfile, tag="", nplanes=3, resp=pcbro.response_file) {
 
     local det = pcbro.detector(resp),
 

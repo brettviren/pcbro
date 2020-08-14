@@ -380,3 +380,11 @@ A standard WCT validation and debugging tool it Magnify.  One can produce a Magn
               -c cfg/cli-bin-sp-mag.jsonnet
 #+end_example
 
+
+** WCT Simulation
+
+In development.  Something like:
+
+#+begin_example
+$ wire-cell -l stdout -L debug -A infile=junk/data/0/0-truthDepo.json -A outfile=out.npz -c cfg/cli-sim-npz.jsonnet
+#+end_example

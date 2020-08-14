@@ -1,7 +1,7 @@
 local pcbro = import "pcbro.jsonnet";
 local g = import "pgraph.jsonnet";
 
-function(infile, outfile, tag="", nplanes=3, resp='pcbro-response-indslc-colave.json.bz2') {
+function(infile, outfile, tag="", nplanes=3, resp=pcbro.response_file) {
 
     local det = pcbro.detector(resp),
 

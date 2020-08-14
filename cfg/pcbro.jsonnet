@@ -8,6 +8,8 @@ local tools = tools_maker(params);
 
 
 {
+    // this may be used to set a default
+    response_file: "pcbro-response-avg.json.bz2",
 
     plugins: ["WireCellPcbro", "WireCellSio", "WireCellAux", "WireCellGen", "WireCellSigProc"],
 
@@ -54,7 +56,7 @@ local tools = tools_maker(params);
 
 
     // Produce params and tools objects that describe the pcbro detector.
-    detector(resp = 'pcbro-response-default.json.bz2'):: {
+    detector(resp = self.response_file):: {
         local defp = import "params.jsonnet",
         local tools_maker = import "pgrapher/common/tools.jsonnet",
         params: defp {
