@@ -191,6 +191,8 @@ def gen_wires(output_file):
 
 
 @cli.command("plot-one")
+@click.option("--baseline-subtract", type=click.Choice(['median','']), default='',
+             help="Apply baseline subtraction method")
 @click.option("-T", "--tag", default="gauss0",
              help="Tag name")
 @click.option("-t", "--trigger", default=31,
@@ -200,7 +202,7 @@ def gen_wires(output_file):
 @click.option("-o","--output",default="plot.pdf",
               help="Output file")
 @click.argument("npzfile")
-def plot_one(tag, trigger, aspect, output, npzfile):
+def plot_one(baseline_subtract, tag, trigger, aspect, output, npzfile):
     '''
     Plot waveforms of a trigger from file
     '''
@@ -210,6 +212,9 @@ def plot_one(tag, trigger, aspect, output, npzfile):
     a = fp[f'frame_{tag}_{trigger}']
     rows, cols = a.shape;
     print (rows,cols)
+
+    if baseline_subtract == 'median':
+        a = a - numpy.median(a, axis=0)
 
     # a = numpy.flip(a,0)
     plt.imshow(a, aspect=aspect, interpolation=None)

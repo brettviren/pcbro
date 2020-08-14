@@ -387,4 +387,5 @@ In development.  Something like:
 
 #+begin_example
 $ wire-cell -l stdout -L debug -A infile=junk/data/0/0-truthDepo.json -A outfile=out.npz -c cfg/cli-sim-npz.jsonnet
+$ wirecell-pcbro plot-one --baseline-subtract=median -t 0  -a 0.2 -T orig0 -o sim.png out.npz
 #+end_example

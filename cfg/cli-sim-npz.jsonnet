@@ -16,7 +16,7 @@ function(infile, outfile, tag="", nplanes=3, resp=pcbro.response_file) {
         depos,
         pcbro.sim(det),
         // pcbro.sigproc(det),
-        pcbro.npzsink("output", outfile, false, tags=["gauss0", "wiener0", "threshold0"]),
+        pcbro.npzsink("output", outfile, false, tags=["orig0"]),
         pcbro.dumpframes("dumpframes")]),
 
     local app = {
