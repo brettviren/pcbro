@@ -386,6 +386,18 @@ A standard WCT validation and debugging tool it Magnify.  One can produce a Magn
 In development.  Something like:
 
 #+begin_example
-$ wire-cell -l stdout -L debug -A infile=junk/data/0/0-truthDepo.json -A outfile=out.npz -c cfg/cli-sim-npz.jsonnet
-$ wirecell-pcbro plot-one --baseline-subtract=median -t 0  -a 0.2 -T orig0 -o sim.png out.npz
+  $ wire-cell -A outfile=out.npz -c cfg/cli-sim-npz.jsonnet
+  $ wire-cell -A resp=pcbro-response-slc0.json.bz2 -A outfile=out-slc0.npz -c cfg/cli-sim-npz.jsonnet
+  $ wire-cell -A resp=pcbro-response-slc1.json.bz2 -A outfile=out-slc1.npz -c cfg/cli-sim-npz.jsonnet
+  $ wirecell-pcbro plot-one --baseline-subtract=median -t 0  -a 0.2 -T orig0 -o sim.png out.npz
+  $ wirecell-pcbro plot-one --baseline-subtract=median -t 0  -a 0.2 -T orig0 -o sim-slc0.png out-slc0.npz
+  $ wirecell-pcbro plot-one --baseline-subtract=median -t 0  -a 0.2 -T orig0 -o sim-slc1.png out-slc1.npz
 #+end_example
+Add ~-l stdout -L debug~ to make ~wire-cell~ a bit more talkative.
+
+[[file:sim.png]]
+
+[[file:sim-slc0.png]]
+
+[[file:sim-slc1.png]]
+
