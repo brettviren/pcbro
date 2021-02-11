@@ -1,0 +1,37 @@
+#+title: PCBro Installation
+
+The ~pcbro~ package provides a Wire-Cell Toolkit User Package (WCUP) building a WCT plugin library and it provides a python module with CLI.  It requires these two parts of a usual Wire-Cell Toolkit installation.
+
+* Install Wire-Cell Toolkit Plugin Library
+
+#+begin_example
+  $ ./wcb configure --prefix=/path/to/install \
+        --with-wct=$HOME/opt/wct \
+        [...maybe other --with-* flags...]
+  $ ./wcb --notests install
+  $ ./wcb --alltests
+#+end_example
+
+Note, the install library location must be added to ~LD_LIBRARY_PATH~ and you may want to add ~pcbro~ cfg area to ~WIRECELL_PATH~.  Assuming these variables have already been configured for WCT itself:
+
+#+begin_example
+  $ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/install/lib
+  $ WIRECELL_PATH=$WIRECELL_PATH:/path/to/pcbro/cfg
+#+end_example
+
+* Python module and CLI
+
+The ~pcbro~ package provides a ~wirecell.pcbro~ Python module and a CLI called as ~wirecell-pcbro~.  It is used for generating PCB anode "wires" files and for processing Garfield output into WCT response file.  It also provides various diagnostic plots.  It is most easily installed alongside the WCT Python modules.  Note, Python3 is required.
+
+#+begin_example
+  $ python3 -m venv venv
+  $ source venv/bin/activate
+
+  $ cd /path/to/wire-cell-toolkit/python
+  $ python -m pip install -e .  
+  
+  $ cd /path/to/pcbro/python
+  $ python -m pip install -e .
+
+  $ wirecell-pcbro --help
+#+end_example

@@ -1,0 +1,53 @@
+#+title: Rough development roadmap 
+
+
+* Overall roadmap
+
+The development roadmap for this package is roughly:
+
+- [X] generate initial package skeleton with [[https://github.com/brettviren/moo][moo]].
+- [X] raw data decoder for the ~.bin~ files produced by the 50L DAQ.
+- [X] a WCT "source" component that will provide this data as WCT tensors
+- [X] a WCT configuration to convert ~.bin~ to ~.npz~ files
+- [X] produce event displays to confirm decoder works
+- [X] produce fake WCT "wires file" mostly to serve as channel map (save to ~wire-cell-data~)
+- [X] develop WCT configuration to run sigproc on ~.bin~ and save results to zero-padded ~.npz~ (with bogus use of PDSP field response functions)
+- [ ] progress though field roadmap (below)
+
+- [ ] understand and fix the apparent wrap-around in SP data ([[https://github.com/brettviren/pcbro/issues/1][issue 1]])
+- [X] job configuration to save ADC-level and SP-level data to Magnify files. ([[https://github.com/brettviren/pcbro/issues/2][issue 2]])
+- [ ] data reduction.  This needs some serious thought and is mostly in the core of WCT.
+
+* Field Roadmap
+
+The PCB poses a greater need for a true 3D field response model than
+do wires.  This roadmap gives a phased approach to get closer to the
+ideal.
+
+*** 2D response + 2D WCT
+
+Uses GARFIELD "micro wire" approximation
+
+- [X] calculate 2D fields at various radial positions for a single-hole universe using the "many wire" trick and Garfield.
+- [X] parse this to produce responses at two "slices" for each plane
+- [X] generate WCT ~.json.bz2~ files with choice of which slices to select or average over
+- [ ] save "official" response files to ~cfg/~
+- [X] understand/fix apparent unipolar contribution to neighbor strips for paths in the shared hole.
+
+
+*** 3D fields + 2D WCT sim+sigproc
+
+Uses existing WCT unchanged.
+
+- [ ] calculate 3D fields with realistic hole pattern (Garfield++/neBEM?, Garfield++/COMSOL?, pure COMSOL?)
+- [ ] calculate response functions for paths starting on a square grid based on the usual 6 impact positions.  In one dimension/plane these span impacts and the other these span "slices" across the strip.  This tries to exploit the orthogonal symmetry of the PCB anode.  In general, (eg with wire planes) we need one set of paths per plane.
+- [ ] for each plane, marginalize the response functions over the slice dimension to produce 2D response functions that may be used in current WCT simulation and sigproc
+
+
+*** 3D fields + new 3D WCT sim
+
+This has two possible branches of development
+
+- [ ] develop full 3D simulation as a conceptual extension to the convolution technique used in current 2D WCT.  This will be very memory and computationally expensive.  We should consider the need for GPU (not merely as an optimization) but retain ability to run on CPU.  This may be something for CCE-PPS to work on.  I expect the best first step is a prototype using PyTorch.
+
+- [ ] develop full 3D simulation as an MC using Garfield++.  Some concerns: too slow? not GPU'able? requires us to get deeper Garfield++ experience.
