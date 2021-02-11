@@ -30,6 +30,53 @@ def cli(ctx):
     '''
     ctx.ensure_object(dict)
 
+
+
+@cli.command("fpstrips-draw-paths")
+@click.option("-t", "--transform", is_flag=True, default=False,
+              help="Apply FP -> WCT coordinate transfer")
+@click.option("-T", "--title", type=str, default="Paths",
+              help="Give plots a common portion of the title")
+@click.argument("tarfile")
+@click.argument("pdffile")
+def fstrips_draw_paths(transform, title, tarfile, pdffile):
+    '''
+    Draw some diagnostics
+    '''
+    from .fpstrips import parse_tar, fp2wct, draw_paths
+
+    fid2arr = parse_tar(tarfile)
+    arrs = list(fid2arr.values())
+    if transform:
+        arrs = [fp2wct(a) for a in arrs]
+    draw_paths(arrs, title, pdffile)
+    
+
+@cli.command("convert-fpstrips")
+@click.option("-o", "--origin", default="10.0*cm",
+              help="Set drift origin (give units, eg '10*cm').")
+@click.option("-s", "--speed", default="1.6*mm/us",
+              help="Set nominal drift speed (give untis, eg '1.6*mm/us').")
+@click.option("-n", "--normalization", default=0.0,
+              help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
+@click.option("-z", "--zero-wire-locs", default=[0.0,0.0,0.0], nargs=3, type=float,
+              help="Set location of zero wires.  def: 0 0 0")
+@click.option("-f", "--format", default="json.bz2",
+              type=click.Choice(['json', 'json.gz', 'json.bz2']),
+              help="Set output file format")
+@click.option("-b", "--basename", default="pcbro-response",
+              help="Set basename for output files")
+@click.argument("fileset")
+def convert_fpstrips(origin, speed, normalization, zero_wire_locs,
+                     format, basename, fileset):
+    '''
+    Produce WCT field file from tarfile of FP's response calcualtion.
+    '''
+    from .util import tar_source
+    for fname, text in tar_source(fileset):
+        print(fname)
+        break
+
 @cli.command("convert-garfield")
 @click.option("-o", "--origin", default="10.0*cm",
               help="Set drift origin (give units, eg '10*cm').")
