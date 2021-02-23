@@ -20,7 +20,7 @@ Each file is about 4MB with 10 columns:
 9. current on strip +4
 10. current on strip +5
 
-- The current is given in electron/microseconds and is the one induced by 10^6 electrons
+- The current is given in electron/microseconds and is the one induced by 10^3 electrons
 
 - The electric field used for the calculation is 500 V/cm and the temperature is 87.7 K (both as in the 50 liter TPC). 
 
@@ -28,6 +28,13 @@ Each file is about 4MB with 10 columns:
 
 - First point is at t=0 and drift location 200mm
 - Last point is at t ~ 120us and drift location 16.7mm 
+
+- In the same dropbox folder there are now the collection signals as well.
+
+- There are 72 files, numbers from 201 to 272, corresponding to electron trajectories in a 12 x 6 array covering an area of 5 mm (across the strip) x 2.5 mm.
+
+- The normalization is the same (10^3 electrons) as for the induction
+
 
 These unit tests prepare the input tar file.
 

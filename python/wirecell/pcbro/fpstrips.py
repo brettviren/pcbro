@@ -7,21 +7,31 @@ import os.path as osp
 import numpy
 from wirecell import units
 
-def pid2fid(pi, li):
+legal_fids = dict(
+    ind = list(range(151, 199)),
+    col = list(range(201, 273)))
+
+def pid2fid(pi, li, pl):
     '''
     Convert path ID to "francesco" ID.
 
     pi in [0,11] counts bin from negative strip edge
     li in [0,3] counts along strip length
     '''
-    return 150 + pi+1 + 12*li
+    assert pl in ('ind', 'col')
+    if pl == 'ind':
+        fid = 150 + pi+1 + 12*li
+    else:
+        fid = 200 + pi+1 + 12*li
+    assert fid in legal_fids[pl]
+    return fid
 
 def fid2pid(fid):
     '''
-    Given a 3 digit numeric file ID, return (i,j) path ID where:
+    Given a 3 digit numeric file ID, return (i,j) path ID and plane name where:
 
     - i counts [0,11] the impact position in the pitch direction
-    - j counts [0,3] the position along the strip direction
+    - j counts [0,3] the position along the strip direction for fid<200 and [0,5] for fid>200
 
     Note, for ii in [1,12] and jj in [1,4] 
           fid is originally calcualted in the FORTRAN as:
@@ -29,11 +39,19 @@ def fid2pid(fid):
 
     But here in Python we use and return 0-counts.
     '''
-    fid = int(fid)
-    fid -= 151
-    i = fid % 12 
-    j = fid // 12
-    return (i,j)
+    ifid = int(fid)
+    if ifid < 200:
+        zfid = ifid - 151
+        pl = 'ind'
+    else:
+        zfid = ifid - 201
+        pl = 'col'
+    if ifid not in legal_fids[pl]:
+        raise ValueError(f'illegal fid: {ifid}')
+
+    i = zfid % 12 
+    j = zfid // 12
+    return (i,j), pl
 
 def parse(text):
     '''
@@ -53,13 +71,15 @@ def parse(text):
 from wirecell.pcbro.util import tar_source
 def parse_tar(tarfile):
     fid2arr = dict()
+    all_legal = legal_fids['ind'] + legal_fids['col']
+
     for fname, text in tar_source(tarfile):
         if "fort." not in fname:
             print(f'skip unknown file: {fname}')
             continue
         print(fname)
         fid = int(osp.basename(fname)[5:8])
-        if fid < 151 or fid > 198:
+        if fid not in all_legal:
             print(f'skip {fname}')
             continue
         arr = parse(text)
@@ -88,6 +108,7 @@ def fp2wct(arr):
 from matplotlib.backends.backend_pdf import PdfPages
 import pylab
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 def draw_starts(arrs, dsname, pdffile):
     '''
@@ -146,7 +167,7 @@ def plane_response(array, planeid, location, pitch):
     pr = PlaneResponse(paths, planeid, location, pitch)
     return pr
 
-def fids2array(fid2arrs, longs=(0,1,2,3), reflect=False):
+def fids2array(fid2arrs, pl, longs=(0,1,2,3), reflect=False):
     '''Return 2D response as function of impact vs tick in WCT form
 
     It performs average along the strip length using the longitudinal
@@ -158,17 +179,25 @@ def fids2array(fid2arrs, longs=(0,1,2,3), reflect=False):
     The response is assumedin FP's units: 
 
         The current is given in electron/microseconds and is the one
-        induced by 10^6 electrons
+        induced by 10^3 electrons
 
     '''
+    assert pl in ('ind', 'col')
+
     # we will MULTIPLY this scale so we get in WCT system of units for
     # current induced by one electron.
-    scale = 1e-6 * units.eplus / units.microsecond
+    scale = 1e-3 * units.eplus / units.microsecond
 
     assert longs
 
+    nlong_max = 4
+    if pl == 'col':
+        nlong_max = 6
+    assert len(longs) <= nlong_max
+    npaths_expect = nlong_max*12
+
     npaths = len(fid2arrs)
-    assert npaths == 48
+    assert npaths == nlong_max*12
     nticks = max([a.shape[0] for a in fid2arrs.values()])
     assert all([a.shape[1]==10 for a in fid2arrs.values()])
 
@@ -182,7 +211,6 @@ def fids2array(fid2arrs, longs=(0,1,2,3), reflect=False):
     # We want current over 20 bins = (total charge)/(total time) = sum(I_i*dt)/sum(dt) = sum(I_i)/20
     scale /= 20.0
 
-
     nimps = 11 * 12
     block = numpy.zeros((nimps, nticks_final))
 
@@ -191,7 +219,7 @@ def fids2array(fid2arrs, longs=(0,1,2,3), reflect=False):
 
         # negative side of strip, postive strips
         for pi in range(6):     
-            fid = str(pid2fid(pi,li))
+            fid = str(pid2fid(pi,li, pl))
             arr = fid2arrs[fid]
 
             for istrip in range(6):
@@ -204,7 +232,7 @@ def fids2array(fid2arrs, longs=(0,1,2,3), reflect=False):
 
         # reflect positive side to get negative strips
         for pi in range(6,12):  
-            fid = str(pid2fid(pi,li))
+            fid = str(pid2fid(pi,li, pl))
             arr = fid2arrs[fid]
 
             for istrip in range(1, 6):
@@ -222,12 +250,13 @@ def fids2array(fid2arrs, longs=(0,1,2,3), reflect=False):
 
 
 def raw_to_splt(fid2arrs):
-    '''Convert npz file data to a block of responses in a 4D block.
+    '''Convert fid-keyed file data to a block of responses in a 4D block.
 
     Block layout is (strip, pitch, long, tick).
 
     pitch and long are indicies in pitch (across) or long (along)
-    strip direction.  Assumed: pitch in [0,11], long in [0,3]
+    strip direction.  Assumed: pitch in [0,11], long in [0,3] for 1xx
+    fids and [0,5] for 2xx fids.
 
     Except for zero end padding no data is changed.
 
@@ -235,42 +264,55 @@ def raw_to_splt(fid2arrs):
 
     '''
 
+    nstrips = 6
+    nimps = 12
+    nlongs = 4
     fids = list(sorted(fid2arrs.keys()))
+    if int(fids[0]) > 200:
+        nlongs= 6
+
     nticks = max([a.shape[0] for a in fid2arrs.values()])
 
     #strip,pitch,long,tick
-    splt = numpy.zeros((6,12,4,nticks))
+    splt = numpy.zeros((nstrips,nimps,nlongs,nticks))
     for fid in fids:
         arr = fid2arrs[fid]
         nhere = arr.shape[0]
+        print ("FID", fid, nhere)
         for istrip in range(6):
             col = 4+istrip
-            pi,li = fid2pid(fid)
+            (pi,li),pl = fid2pid(fid)
+            print(istrip,pi,li,nhere,col)
             splt[istrip,pi,li,:nhere] = arr[:,col]
 
     return splt
 
 from wirecell.sigproc.response.plots import lg10
 
-def draw_splt(splt, dsname, pdffile):
-    '''Make drawings from raw SPLT array.
+def draw_splt(splt, dsname, pdffile, pl):
+    '''Make drawings from raw SPLT array for given plane pl in {'ind','col'}
 
-    It is assumed resposne is in units of "electrons/microsecond" as
-    produced by 1e6 electrons in 5ns ticks.
+    It is assumed response is in units of "electrons/microsecond" as
+    produced by 1e3 electrons in 5ns ticks.
+
     '''
+    neles = 1e3
 
     nticks = splt.shape[-1]
     nticks_to20 = nticks + 20 - nticks%20
     nticks_wct = nticks_to20 // 20
 
     spl_tot = numpy.sum(splt, axis=3)
-    spl_tflat = spl_tot.reshape(6*12*4)
+    nlong = 4
+    if pl == 'col':
+        nlong=6
+    spl_tflat = spl_tot.reshape(6*12*nlong)
     raw_avg = numpy.mean(splt, axis = 2).reshape(6*12,-1)
 
     # Put in WCT units of current
-    wct_splt = splt * 1e-6 * units.eplus / units.microsecond
+    wct_splt = splt / neles * units.eplus / units.microsecond
     # Average over 4 samples along strip 
-    wct_avg = numpy.mean(splt, axis = 2) * 1e-6 * units.eplus / units.microsecond
+    wct_avg = numpy.mean(splt, axis = 2) / neles * units.eplus / units.microsecond
     tmp = numpy.array(wct_avg.reshape(6*12,-1))
     tmp.resize(6*12, nticks_to20) # pad ticks to factor of 20.
     wct = numpy.mean(tmp.reshape(72,-1,20), axis=2)
@@ -279,11 +321,17 @@ def draw_splt(splt, dsname, pdffile):
 
     with PdfPages(pdffile) as pdf:
 
+        Normer = mpl.colors.TwoSlopeNorm
+        norm = Normer(vmin=numpy.min(raw_avg),
+                      vcenter=0.0,
+                      vmax=numpy.max(raw_avg))
+
         # raw
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        plt.title(f'Raw response (path end)')
-        plt.imshow(raw_avg[:,22000:], aspect='auto', interpolation='none')
+        plt.title(f'Raw response')
+        plt.imshow(raw_avg[:,22000:], aspect='auto',
+                   interpolation='none', norm=norm)
         ax.set_xlabel(f'tick (5ns bins)')
         ax.set_ylabel('position')
         plt.colorbar()
@@ -293,7 +341,7 @@ def draw_splt(splt, dsname, pdffile):
         fig = plt.figure()
         ax = fig.add_subplot(111, aspect='auto')
         plt.title(f'Integrated raw response ({dsname})')
-        plt.plot(spl_tflat * 0.005 * 1e-6)
+        plt.plot(spl_tflat * 0.005 / neles)
         ax.set_xlabel(f'path index')
         ax.set_ylabel('integrated current [electrons]')
         pdf.savefig(plt.gcf())
@@ -301,13 +349,18 @@ def draw_splt(splt, dsname, pdffile):
 
         # wct
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        plt.title(f'Response [pA] (path end)')
         #toplot = lg10(wct[:,1000:]/units.picoampere)
         toplot = wct[:,1000:]/units.picoampere
         #toplot = wct[:,1000:]/(units.eplus/units.microsecond)
-        plt.imshow(toplot, aspect='auto', interpolation='none')
+        norm2 = Normer(vmin=numpy.min(toplot),
+                      vcenter=0.0,
+                      vmax=numpy.max(toplot))
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        plt.title(f'Response [pA]')
+        plt.imshow(toplot, aspect='auto',
+                   interpolation='none', norm=norm2)
         ax.set_xlabel('tick (100ns bins)')
         ax.set_ylabel('position')
         plt.colorbar()
@@ -327,10 +380,15 @@ def draw_splt(splt, dsname, pdffile):
 
 
 
-def draw(fid2arrs, dsname, pdffile, frac=0.95):
+def draw(fid2arrs, pl, dsname, pdffile, frac=0.95):
     '''
     Given arrays such as from parse() make plots of paths
+
+    fids should be from given plane
+
     '''
+    pl in ('ind', 'col')
+
     arrs = list(fid2arrs.values())
 
     frac=0.95
@@ -339,7 +397,6 @@ def draw(fid2arrs, dsname, pdffile, frac=0.95):
     pct = '%.0f%%' % ((1-frac)*100,)
     step=1
 
-
     with PdfPages(pdffile) as pdf:
 
         slices = [[s] for s in list(range(4))]
@@ -347,7 +404,7 @@ def draw(fid2arrs, dsname, pdffile, frac=0.95):
         for longs in slices:
             fig = plt.figure()
             ax = fig.add_subplot(111, aspect='auto')
-            rf = fids2array(fid2arrs, longs, reflect=True)  
+            rf = fids2array(fid2arrs, pl, longs, reflect=True)  
             plt.imshow(rf[:,coarse_start:]/units.microampere, interpolation='none', aspect='auto')
             plt.colorbar()
             plt.title(f'Responses [uA] (slices {longs}) {dsname}')
@@ -362,11 +419,9 @@ def draw(fid2arrs, dsname, pdffile, frac=0.95):
             pdf.savefig(plt.gcf())
             plt.close();
 
-        return
-
         for fid, arr in fid2arrs.items():
             fig = plt.figure()
-            pid = fid2pid(fid)
+            pid,pl = fid2pid(fid)
             ax = fig.add_subplot(111)
             plt.title(f'Responses for pos {fid}={pid}')
             for istrip in range(6):
@@ -383,7 +438,7 @@ def draw(fid2arrs, dsname, pdffile, frac=0.95):
             xstart.append(arr[0,1])
             ystart.append(arr[0,2])
             zstart.append(arr[0,3])
-            pid = fid2pid(fid)
+            pid,pl = fid2pid(fid)
             idtext.append(f'{fid}={pid}')
 
         fig = plt.figure()
