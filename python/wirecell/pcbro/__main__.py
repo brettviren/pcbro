@@ -31,51 +31,151 @@ def cli(ctx):
     ctx.ensure_object(dict)
 
 
+@cli.command("fpstrips-tar2npz")
+@click.argument("tarfile")
+@click.argument("npzfile")
+def fstrips_tar2npz(tarfile, npzfile):
+    import numpy
+    from .fpstrips import parse_tar
+    fid2arr = parse_tar(tarfile)
+    fid2arr = {str(k):v for k,v in fid2arr.items()}
+    numpy.savez(npzfile, **fid2arr)
 
-@cli.command("fpstrips-draw-paths")
+@cli.command("fpstrips-tar2spltnpz")
+@click.argument("tarfile")
+@click.argument("npzfile")
+def fstrips_tar2spltnpz(tarfile, npzfile):
+    import numpy
+    from .fpstrips import parse_tar, raw_to_splt
+    fid2arr = parse_tar(tarfile)
+    fid2arr = {str(k):v for k,v in fid2arr.items()}
+    splt = raw_to_splt(fid2arr)
+    numpy.savez(npzfile, splt)
+
+@cli.command("fpstrips-draw")
 @click.option("-t", "--transform", is_flag=True, default=False,
               help="Apply FP -> WCT coordinate transfer")
 @click.option("-T", "--title", type=str, default="Paths",
               help="Give plots a common portion of the title")
-@click.argument("tarfile")
+@click.argument("dataset")
 @click.argument("pdffile")
-def fstrips_draw_paths(transform, title, tarfile, pdffile):
+def fstrips_draw(transform, title, dataset, pdffile):
     '''
-    Draw some diagnostics
+    Make some diagnostics plots and drawings
     '''
-    from .fpstrips import parse_tar, fp2wct, draw_paths
+    import numpy
+    from .fpstrips import parse_tar, fp2wct, draw
 
-    fid2arr = parse_tar(tarfile)
-    arrs = list(fid2arr.values())
+    if dataset.endswith(".npz"):
+        fid2arr = numpy.load(dataset)
+        fid2arr = {k:numpy.array(v) for k,v in fid2arr.items()}
+    else:
+        fid2arr = {str(k):v for k,v in parse_tar(dataset).items()}
     if transform:
-        arrs = [fp2wct(a) for a in arrs]
-    draw_paths(arrs, title, pdffile)
+        for fid in fid2arr:
+            fid2arr[fid] = fp2wct(fid2arr[fid])
+    draw(fid2arr, title, pdffile)
     
+@cli.command("fpstrips-draw-splt")
+@click.option("-T", "--title", type=str, default="Paths",
+              help="Give plots a common portion of the title")
+@click.argument("npzfile")
+@click.argument("pdffile")
+def fstrips_draw_splt(title, npzfile, pdffile):
+    '''
+    Make some diagnostics from raw splt file
 
-@cli.command("convert-fpstrips")
-@click.option("-o", "--origin", default="10.0*cm",
-              help="Set drift origin (give units, eg '10*cm').")
-@click.option("-s", "--speed", default="1.6*mm/us",
-              help="Set nominal drift speed (give untis, eg '1.6*mm/us').")
-@click.option("-n", "--normalization", default=0.0,
+    See fpstrips-tar2spltnpz command.
+    '''
+    import numpy
+    from .fpstrips import draw_splt
+
+    fp = numpy.load("dv-1000v-splt.npz")
+    splt = fp['arr_0']     
+    draw_splt(splt, title, pdffile)
+
+
+
+@cli.command("convert-fpstrips-one")
+@click.option("--origin", default="0",
+              help="Set drift origin (use units, eg '10*cm').")
+@click.option("--tstart", default="0",
+              help="Set time start (use units eg 100*us).")
+@click.option("--period", default="0",
+              help="Set sample period time (use units eg 0.1*us).")
+@click.option("--speed", default="0",
+              help="Set nominal drift speed (use, units, eg '1.6*mm/us').")
+@click.option("--normalization", default=0.0,
               help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
-@click.option("-z", "--zero-wire-locs", default=[0.0,0.0,0.0], nargs=3, type=float,
+@click.option("--zero-wire-locs", default=[0.0,0.0,0.0], nargs=3, type=float,
               help="Set location of zero wires.  def: 0 0 0")
-@click.option("-f", "--format", default="json.bz2",
-              type=click.Choice(['json', 'json.gz', 'json.bz2']),
-              help="Set output file format")
-@click.option("-b", "--basename", default="pcbro-response",
-              help="Set basename for output files")
-@click.argument("fileset")
-def convert_fpstrips(origin, speed, normalization, zero_wire_locs,
-                     format, basename, fileset):
+@click.option("--longs", default="0,1,2,3",
+              help="List of longitudinal positions over which to average")
+@click.option("-o", "--output", type=str, 
+              help="Set output file name")
+@click.option("--graft", default=None,
+              help="Give an existing WCT file which provides additional planes")
+@click.option("--planeid", type=str, default="",
+              help="The plane ID for the new response plane")
+@click.option("--pitch", type=str, default="0.5*mm",
+              help="The pitch for the new response plane")
+@click.argument("dataset")
+def convert_fpstrips_one(origin, tstart, period, speed,
+                         normalization, zero_wire_locs, longs,
+                         output, graft, planeid, pitch, dataset):
+    '''Produce WCT field file by taking one plane response from the
+    tarfile dataset of FP's response calcualtion and splicing it into
+    an existing file.
+
     '''
-    Produce WCT field file from tarfile of FP's response calcualtion.
-    '''
-    from .util import tar_source
-    for fname, text in tar_source(fileset):
-        print(fname)
-        break
+    assert(planeid)
+    longs = [int(l.strip()) for l in longs.split(',')]
+
+    import numpy
+    import wirecell.sigproc.response.persist as per
+    from wirecell.sigproc.response.schema import FieldResponse
+    from .fpstrips import (
+        parse_tar, fp2wct, fids2array, plane_response)
+
+    # fr level
+    origin = eval(origin, units.__dict__)
+    tstart = eval(tstart, units.__dict__)
+    period = eval(period, units.__dict__)
+    speed = eval(speed, units.__dict__)
+
+    # pr level
+    pitch = eval(pitch, units.__dict__)
+
+    if dataset.endswith(".npz"):
+        fid2arr = numpy.load(dataset)
+        fid2arr = {k:numpy.array(v) for k,v in fid2arr.items()}
+    else:
+        fid2arr = {str(k):v for k,v in parse_tar(dataset).items()}
+    for fid in fid2arr:
+        fid2arr[fid] = fp2wct(fid2arr[fid])
+
+    array = fids2array(fid2arr, longs, reflect=True)  
+    pr = plane_response(array, planeid, zero_wire_locs, pitch)
+    planes = [pr]
+    if graft:
+        fr = per.load(graft)
+        speed = speed or fr.speed
+        origin = origin or fr.origin
+        tstart = tstart or fr.tstart
+        period = period or fr.period
+        for pl in fr.planes:
+            if pl.planeid == planeid:
+                print(f'found plane to replace: {pl.planeid}')
+                continue
+            print(f'found plane to reuse: {pl.planeid}')
+            planes.append(pl)
+
+    anti_drift_axis = (1.0, 0.0, 0.0)
+    fr = FieldResponse(planes, anti_drift_axis,
+                       origin, tstart, period, speed)
+    per.dump(output, fr)
+
+
 
 @cli.command("convert-garfield")
 @click.option("-o", "--origin", default="10.0*cm",
@@ -236,6 +336,86 @@ def gen_wires(output_file):
     text = wires.generate()
     open(output_file,"wb").write(text.encode('ascii'))
 
+@cli.command("evd2d")
+@click.option("--baseline-subtract", type=click.Choice(['median','']), default='',
+             help="Apply baseline subtraction method")
+@click.option("-T", "--tag", default="",
+             help="Tag name")
+@click.option("-t", "--trigger", default=31,
+             help="Trigger number")
+@click.option("-a","--aspect", default="auto", type=str,
+              help="Aspect ratio")
+@click.option("--title", default="Signals",
+              help="Set name for unit of color scale")
+@click.option("--color-range", default=None,
+              help="Set color range as 'min,max' or 'min,center,max' list of numbers, default is full range")
+@click.option("--color-unit", default="ionization electrons",
+              help="Set name for unit of color scale")
+@click.option("--color-map", default="bwr",
+              help="Set color map name")
+@click.option("--cnames", default="collection,induction",
+              help="Comma-separated list channel group names")
+@click.option("--channels", default="0:64,64:128",
+              help="Colon-comma-separated list of channels to include eg '0:50,64:110'")
+@click.option("--ticks", default="0:600",
+              help="Colon-separated range of ticks")
+@click.option("-o","--output",default="plot.pdf",
+              help="Output file")
+@click.argument("npzfile")
+def evd2d(baseline_subtract, tag, trigger, aspect,
+          title, color_range, color_unit, color_map, cnames, channels, ticks, output, npzfile):
+    '''
+    Plot waveforms of a trigger from file
+    '''
+    title = title.format(**locals())
+
+    import numpy
+    import matplotlib.pyplot as plt 
+    import matplotlib as mpl
+    fp = numpy.load(npzfile)
+    a = fp[f'frame_{tag}_{trigger}']
+    rows, cols = a.shape;
+    print (rows,cols)
+
+    cnames = cnames.split(',')
+
+
+    if baseline_subtract == 'median':
+        a = a - numpy.median(a, axis=0)
+
+    if color_range is None:
+        color_range = [numpy.min(a), numpy.max(a)]
+    else:
+        color_range = [float(v) for v in color_range.split(',')]
+
+    Normer = mpl.colors.TwoSlopeNorm
+    if len(color_range) == 2:
+        color_range.insert(1, 0.5*numpy.sum(color_range))
+    norm = Normer(vmin=color_range[0],
+                  vcenter=color_range[1],
+                  vmax=color_range[2])
+
+    tt = list(map(int, ticks.split(":")))
+    channels = [list(map(int, ss.strip().split(":"))) for ss in channels.split(",")]
+    nplanes = len(channels)
+    fig, axes = plt.subplots(1, nplanes, sharey=True, figsize=(10.5, 8.0))
+    for pind in range(nplanes):
+        cc = channels[pind]
+        ax = axes[pind]
+        sa = a[tt[0]:tt[1], cc[0]:cc[1]]
+        im = ax.imshow(sa, cmap=color_map, aspect=aspect, interpolation='none',
+                       norm=norm, extent=[cc[0],cc[1],tt[1],tt[0]])
+        ax.set_xlabel(f'{cnames[pind]} channels [IDs]')
+        ax.set_xticks
+    axes[0].set_ylabel('sample period [count]')
+    c = fig.colorbar(im)
+    c.set_label(color_unit)
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+    plt.suptitle(title, fontsize=14)
+    fig.subplots_adjust(top=0.95)
+    plt.savefig(output, bbox_inches='tight')
+
 
 @cli.command("plot-one")
 @click.option("--baseline-subtract", type=click.Choice(['median','']), default='',
@@ -244,7 +424,7 @@ def gen_wires(output_file):
              help="Tag name")
 @click.option("-t", "--trigger", default=31,
              help="Trigger number")
-@click.option("-a","--aspect", default=1.0,
+@click.option("-a","--aspect", default="1.0", type=str,
               help="Aspect ratio")
 @click.option("-o","--output",default="plot.pdf",
               help="Output file")
@@ -264,7 +444,7 @@ def plot_one(baseline_subtract, tag, trigger, aspect, output, npzfile):
         a = a - numpy.median(a, axis=0)
 
     # a = numpy.flip(a,0)
-    plt.imshow(a, aspect=aspect, interpolation=None)
+    plt.imshow(a, aspect=aspect, interpolation='none')
     plt.plot((64, 64), (0, rows-1), linewidth=0.1, color='red')
     if cols == 192:
         plt.plot((128, 128), (0, rows-1), linewidth=0.1, color='red')

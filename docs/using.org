@@ -1,4 +1,5 @@
-#+title Using ~pcbro~
+#+title: Using ~pcbro~
+#+options: toc:t
 
 This document goes through some basic programs to exercise parts of PCBro.
 
@@ -178,9 +179,17 @@ averaged.
 See next section for downloading the results of this script.
 The PNGs produced are committed:
 
-- [[docs/pcbro-response-avg.png]]
-- [[docs/pcbro-response-slc0.png]]
-- [[docs/pcbro-response-slc1.png]]
+#+ATTR_HTML: :width 90%
+#+ATTR_ORG: :width 600
+file:pcbro-response-avg.png
+
+#+ATTR_HTML: :width 90%
+#+ATTR_ORG: :width 600
+file:pcbro-response-slc0.png
+
+#+ATTR_HTML: :width 90%
+#+ATTR_ORG: :width 600
+file:pcbro-response-slc1.png
 
 
 
@@ -188,7 +197,7 @@ The PNGs produced are committed:
 
 The raw ~.bin~ data can be read in, decoded, run through WCT signal processing and the result written to an Numpy ~.npz~ array file
 
-*Caveat:* while the fields are being validated these results do not represent the ultimate efficacy.  See [[Roadmap]] for relevant details.  Until these are finalized, there will not be any officially, versioned field files but the latest can be retrieved:
+*Caveat:* while the fields are being validated these results do not represent the ultimate efficacy.  See Roadmap for relevant details.  Until these are finalized, there will not be any officially, versioned field files but the latest can be retrieved:
 
 #+begin_example
   $ wget https://www.phy.bnl.gov/~bviren/tmp/pcbro/pcbro-response-latest.tar

@@ -26,11 +26,25 @@ Each file is about 4MB with 10 columns:
 
 - The corresponding drift velocity is obtained with the BNL parametrization (verified as Xin suggested).
 
+- First point is at t=0 and drift location 200mm
+- Last point is at t ~ 120us and drift location 16.7mm 
+
 These unit tests prepare the input tar file.
 
 #+begin_example
   $ bats -f '(download|unpack|repack)' test/test_fpstrips.bats 
 #+end_example
+
+* Diagnostic plots
+
+Using the tar files from above.
+
+#+begin_example
+  $ wirecell-pcbro fpstrips-draw -T "FP" data/fpstrips/DV-1000V.tar.gz dv-1000v-paths-fp.pdf
+  $ wirecell-pcbro fpstrips-draw -T "FP" data/fpstrips/DV-2000V.tar.gz dv-2000v-paths-fp.pdf
+#+end_example
+
+The ~-T~ simply sets a title.  Plots are shown in FP's coordinate system.
 
 * Transform to WCT response JSON file
 
