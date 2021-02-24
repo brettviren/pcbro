@@ -11,7 +11,8 @@ legal_fids = dict(
     ind = list(range(151, 199)),
     col = list(range(201, 273)))
 
-def pid2fid(pi, li, pl):
+
+def pid2fid(pi, li, pl, strip=0):
     '''
     Convert path ID to "francesco" ID.
 
@@ -22,7 +23,12 @@ def pid2fid(pi, li, pl):
     if pl == 'ind':
         fid = 150 + pi+1 + 12*li
     else:
-        fid = 200 + pi+1 + 12*li
+        if strip == 0:
+            fid = 200 + pi+1 + 12*li
+        elif strip in (1,3):
+            fid = 200 + (12-pi)+1 + 12*li
+        else:                   # strip 2
+            fid = 200 + (12-pi)+1 + 12*(6-li)
     assert fid in legal_fids[pl]
     return fid
 
@@ -278,11 +284,11 @@ def raw_to_splt(fid2arrs):
     for fid in fids:
         arr = fid2arrs[fid]
         nhere = arr.shape[0]
-        print ("FID", fid, nhere)
+        #print ("FID", fid, nhere)
         for istrip in range(6):
             col = 4+istrip
             (pi,li),pl = fid2pid(fid)
-            print(istrip,pi,li,nhere,col)
+            #print(istrip,pi,li,nhere,col)
             splt[istrip,pi,li,:nhere] = arr[:,col]
 
     return splt
