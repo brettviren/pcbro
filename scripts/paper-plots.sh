@@ -25,8 +25,8 @@ fi
 set -x
 
 trigger=31
-ticks='100:450'
-channels='0:50,64:114'
+ticks='100:500'
+channels='0:64,64:128'
 # cmap='viridis'
 # cmap='plasma'
 cmap='bwr'
@@ -46,7 +46,7 @@ do
 wirecell-pcbro evd2d $common_args \
                --title="Raw data from run $timestamp trigger {trigger}" \
                --color-unit="ADC from baseline" \
-               --color-range='-1000,0,1000' \
+               --color-range='-512,0,512' \
                --baseline-subtract median \
                -o $outdir/raw-${TSDS}-${trigger}.$ext $RAWNPZ
 
@@ -54,7 +54,8 @@ wirecell-pcbro evd2d $common_args \
 ## SIG
 wirecell-pcbro evd2d $common_args \
                --title="Signals from run $timestamp trigger {trigger}" \
-               --color-range='-100,0,12000' \
+               --tshift=38 \
+               --color-range='-100,0,5000' \
                -T gauss0 \
                -o $outdir/sig-${TSDS}-${trigger}.$ext $SIGNPZ
     done

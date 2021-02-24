@@ -434,13 +434,16 @@ def gen_wires(output_file):
               help="Comma-separated list channel group names")
 @click.option("--channels", default="0:64,64:128",
               help="Colon-comma-separated list of channels to include eg '0:50,64:110'")
+@click.option("--tshift", default=0, type=int,
+              help="Shift data this many ticks")
 @click.option("--ticks", default="0:600",
               help="Colon-separated range of ticks")
 @click.option("-o","--output",default="plot.pdf",
               help="Output file")
 @click.argument("npzfile")
 def evd2d(baseline_subtract, tag, trigger, aspect,
-          title, color_range, color_unit, color_map, cnames, channels, ticks, output, npzfile):
+          title, color_range, color_unit, color_map,
+          cnames, channels, tshift, ticks, output, npzfile):
     '''
     Plot waveforms of a trigger from file
     '''
@@ -451,11 +454,11 @@ def evd2d(baseline_subtract, tag, trigger, aspect,
     import matplotlib as mpl
     fp = numpy.load(npzfile)
     a = fp[f'frame_{tag}_{trigger}']
+
     rows, cols = a.shape;
     print (rows,cols)
 
     cnames = cnames.split(',')
-
 
     if baseline_subtract == 'median':
         a = a - numpy.median(a, axis=0)
@@ -479,7 +482,7 @@ def evd2d(baseline_subtract, tag, trigger, aspect,
     for pind in range(nplanes):
         cc = channels[pind]
         ax = axes[pind]
-        sa = a[tt[0]:tt[1], cc[0]:cc[1]]
+        sa = a[tt[0]-tshift:tt[1]-tshift, cc[0]:cc[1]]
         im = ax.imshow(sa, cmap=color_map, aspect=aspect, interpolation='none',
                        norm=norm, extent=[cc[0],cc[1],tt[1],tt[0]])
         ax.set_xlabel(f'{cnames[pind]} channels [IDs]')
