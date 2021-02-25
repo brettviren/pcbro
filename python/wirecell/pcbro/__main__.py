@@ -7,6 +7,8 @@ import sys
 import json
 import click
 from wirecell import units
+import numpy
+import zipfile
 
 import wirecell.pcbro.garfield as pcbgf
 import wirecell.pcbro.draw as pcbdraw
@@ -31,226 +33,39 @@ def cli(ctx):
     ctx.ensure_object(dict)
 
 
-@cli.command("fpstrips-tar2npz")
-@click.argument("tarfile")
-@click.argument("npzfile")
-def fstrips_tar2npz(tarfile, npzfile):
-    import numpy
-    from .fpstrips import parse_tar
-    fid2arr = parse_tar(tarfile)
-    fid2arr = {str(k):v for k,v in fid2arr.items()}
-    numpy.savez(npzfile, **fid2arr)
+@cli.command("fpstrips-zip2npz")
+@click.argument("zipname")
+@click.argument("npzname")
+def fstrips_zip2npz(zipname, npzname):
+    '''Rewrite zip of fort.NNN files to faster NPZ.
 
-@cli.command("fpstrips-tar2spltnpz")
-@click.argument("tarfile")
-@click.argument("npzfile")
-def fstrips_tar2spltnpz(tarfile, npzfile):
-    import numpy
-    from .fpstrips import parse_tar, raw_to_splt
-    fid2arr = parse_tar(tarfile)
-    tosave=dict()
-    for nam, fids in [("imp", list(range(151, 199))),
-                      ("col", list(range(201, 273)))]:
-        byfid = {str(k):fid2arr[k] for k in fids}
-        splt = raw_to_splt(byfid)
-        tosave[nam] = splt
-    numpy.savez(npzfile, **tosave)
+    No processing is done.  Result is two 3D arrays of shapes:
 
-@cli.command("fpstrips-draw")
-@click.option("-t", "--transform", is_flag=True, default=False,
-              help="Apply FP -> WCT coordinate transfer")
-@click.option("-T", "--title", type=str, default="Paths",
-              help="Give plots a common portion of the title")
-@click.argument("dataset")
-@click.argument("pdffile")
-def fstrips_draw(transform, title, dataset, pdffile):
-    '''
-    Make some diagnostics plots and drawings
-    '''
-    import numpy
-    from .fpstrips import parse_tar, fp2wct, draw
+    col: (12*6, 10, many)
+    ind: (12*4, 10, many)
 
-    if dataset.endswith(".npz"):
-        fid2arr = numpy.load(dataset)
-        fid2arr = {k:numpy.array(v) for k,v in fid2arr.items()}
-    else:
-        fid2arr = {str(k):v for k,v in parse_tar(dataset).items()}
-    if transform:
-        for fid in fid2arr:
-            fid2arr[fid] = fp2wct(fid2arr[fid])
-    draw(fid2arr, title, pdffile)
-    
-@cli.command("fpstrips-draw-splt")
-@click.option("-T", "--title", type=str, default="Paths",
-              help="Give plots a common portion of the title")
-@click.option("-p", "--plane", type=click.Choice(["imp","col"]),
-              help="Name the plane")
-@click.argument("npzfile")
-@click.argument("pdffile")
-def fstrips_draw_splt(title, plane, npzfile, pdffile):
-    '''
-    Make some diagnostics from raw splt file
-
-    See fpstrips-tar2spltnpz command.
-    '''
-    import numpy
-    from .fpstrips import draw_splt
-
-    fp = numpy.load(npzfile)
-    splt = fp[plane]     
-    draw_splt(splt, title, pdffile, plane)
-
-
-
-@cli.command("convert-fpstrips")
-@click.option("--origin", default="0",
-              help="Set drift origin (use units, eg '10*cm').")
-@click.option("--tstart", default="0",
-              help="Set time start (use units eg 100*us).")
-@click.option("--period", default="0",
-              help="Set sample period time (use units eg 0.1*us).")
-@click.option("--speed", default="0",
-              help="Set nominal drift speed (use, units, eg '1.6*mm/us').")
-@click.option("--normalization", default=0.0,
-              help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
-@click.option("--zero-wire-locs", default=[0.0,0.0,0.0], nargs=3, type=float,
-              help="Set location of zero wires.  def: 0 0 0")
-@click.option("--longs", default="0,1,2,3",
-              help="List of longitudinal positions over which to average")
-@click.option("-o", "--output", type=str, 
-              help="Set output file name")
-@click.option("--pitch", type=str, default="0.5*mm",
-              help="The pitch for the new response plane")
-@click.argument("dataset")
-def convert_fpstrips(origin, tstart, period, speed,
-                         normalization, zero_wire_locs, longs,
-                         output, pitch, dataset):
-    '''Produce WCT field file from tarfile dataset of FP's response.
+    The first index spans the .NNN ID number and order.
+    The second index spans 10 columns (t,x,y,z,w0,w1,w2,w3,w4,w5).
+    The third spans number of samples and differs in general between the two.
 
     '''
-    assert(planeid)
-    longs = [int(l.strip()) for l in longs.split(',')]
-
-    import numpy
-    import wirecell.sigproc.response.persist as per
-    from wirecell.sigproc.response.schema import FieldResponse
-    from .fpstrips import (
-        parse_tar, fp2wct, fids2array, plane_response)
-
-    # fr level
-    origin = eval(origin, units.__dict__)
-    tstart = eval(tstart, units.__dict__)
-    period = eval(period, units.__dict__)
-    speed = eval(speed, units.__dict__)
-
-    # pr level
-    pitch = eval(pitch, units.__dict__)
-
-    if dataset.endswith(".npz"):
-        fid2arr = numpy.load(dataset)
-        fid2arr = {k:numpy.array(v) for k,v in fid2arr.items()}
-    else:
-        fid2arr = {str(k):v for k,v in parse_tar(dataset).items()}
-    for fid in fid2arr:
-        fid2arr[fid] = fp2wct(fid2arr[fid])
-
-    fids_imp = [str(fid) for fid in range(151, 199)]
-    fids_col = [str(fid) for fid in range(201, 273)]
-
-    fid2arr_imp = {k:fis3arr[k] for k in fids_imp}
-    fid2arr_col = {k:fis3arr[k] for k in fids_col}
-
-    array = fids2array(fid2arr, longs, reflect=True)  
-    # fixme need to adjust zero wire locs!
-    u = plane_response(array, 0, zero_wire_locs, pitch)
-    v = plane_response(array, 1, zero_wire_locs, pitch)
-    w = plane_response(array, 2, zero_wire_locs, pitch)
-    planes = [pr]
-    anti_drift_axis = (1.0, 0.0, 0.0)
-    fr = FieldResponse(planes, anti_drift_axis,
-                       origin, tstart, period, speed)
-    per.dump(output, fr)
+    from .fpstrips import fpzip2arrs
+    zf = zipfile.ZipFile(zipname, 'r')
+    arrs = fpzip2arrs(zf)
+    numpy.savez(npzname, **arrs)
 
 
-
-@cli.command("convert-fpstrips-one")
-@click.option("--origin", default="0",
-              help="Set drift origin (use units, eg '10*cm').")
-@click.option("--tstart", default="0",
-              help="Set time start (use units eg 100*us).")
-@click.option("--period", default="0",
-              help="Set sample period time (use units eg 0.1*us).")
-@click.option("--speed", default="0",
-              help="Set nominal drift speed (use, units, eg '1.6*mm/us').")
-@click.option("--normalization", default=0.0,
-              help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
-@click.option("--zero-wire-locs", default=[0.0,0.0,0.0], nargs=3, type=float,
-              help="Set location of zero wires.  def: 0 0 0")
-@click.option("--longs", default="0,1,2,3",
-              help="List of longitudinal positions over which to average")
-@click.option("-o", "--output", type=str, 
-              help="Set output file name")
-@click.option("--graft", default=None,
-              help="Give an existing WCT file which provides additional planes")
-@click.option("--planeid", type=str, default="",
-              help="The plane ID for the new response plane")
-@click.option("--pitch", type=str, default="0.5*mm",
-              help="The pitch for the new response plane")
-@click.argument("dataset")
-def convert_fpstrips_one(origin, tstart, period, speed,
-                         normalization, zero_wire_locs, longs,
-                         output, graft, planeid, pitch, dataset):
-    '''Produce WCT field file by taking one plane response from the
-    tarfile dataset of FP's response calcualtion and splicing it into
-    an existing file.
-
+@cli.command("fpstrips-draw-fids")
+@click.argument("npzname")
+@click.argument("pdfname")
+def fpstrips_draw_fids(npzname, pdfname):
     '''
-    assert(planeid)
-    longs = [int(l.strip()) for l in longs.split(',')]
+    Make some drawings from the untouched npz file
+    '''
+    from .fpstrips import draw_fids
+    arrs = numpy.load(npzname)
+    draw_fids(arrs, pdfname)
 
-    import numpy
-    import wirecell.sigproc.response.persist as per
-    from wirecell.sigproc.response.schema import FieldResponse
-    from .fpstrips import (
-        parse_tar, fp2wct, fids2array, plane_response)
-
-    # fr level
-    origin = eval(origin, units.__dict__)
-    tstart = eval(tstart, units.__dict__)
-    period = eval(period, units.__dict__)
-    speed = eval(speed, units.__dict__)
-
-    # pr level
-    pitch = eval(pitch, units.__dict__)
-
-    if dataset.endswith(".npz"):
-        fid2arr = numpy.load(dataset)
-        fid2arr = {k:numpy.array(v) for k,v in fid2arr.items()}
-    else:
-        fid2arr = {str(k):v for k,v in parse_tar(dataset).items()}
-    for fid in fid2arr:
-        fid2arr[fid] = fp2wct(fid2arr[fid])
-
-    array = fids2array(fid2arr, longs, reflect=True)  
-    pr = plane_response(array, planeid, zero_wire_locs, pitch)
-    planes = [pr]
-    if graft:
-        fr = per.load(graft)
-        speed = speed or fr.speed
-        origin = origin or fr.origin
-        tstart = tstart or fr.tstart
-        period = period or fr.period
-        for pl in fr.planes:
-            if pl.planeid == planeid:
-                print(f'found plane to replace: {pl.planeid}')
-                continue
-            print(f'found plane to reuse: {pl.planeid}')
-            planes.append(pl)
-
-    anti_drift_axis = (1.0, 0.0, 0.0)
-    fr = FieldResponse(planes, anti_drift_axis,
-                       origin, tstart, period, speed)
-    per.dump(output, fr)
 
 
 

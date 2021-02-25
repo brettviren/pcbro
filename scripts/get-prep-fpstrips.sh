@@ -10,8 +10,8 @@ dburl="$2"
 shift 2
 
 zipfile="${label}.zip"
-tarfile="${label}.tar"
-spltnpz="${label}-splt.npz"
+fidnpzfile="${label}-fid.npz"
+fidpdffile="${label}-fid.pdf"
 
 if [ -s "$zipfile" ] ; then
     echo "already have $zipfile"
@@ -19,34 +19,15 @@ else
     wget -O "$zipfile" "$dburl" || exit -1
 fi
 
-if [ -d "$label" ] ; then
-    echo "already have $label dir"
+if [ -s "$fidnpzfile" ] ; then
+    echo "already have $fidnpzfile"
 else
-    mkdir -p "$label"
-    cd $label
-    unzip ../$zipfile
-    cd -
+    wirecell-pcbro fpstrips-zip2npz "$zipfile" "$fidnpzfile"
 fi
 
-
-if [ -s "$tarfile" ] ; then
-    echo "already have $tarfile"
+if [ -s "$fidpdffile" ] ; then
+    echo "already have $fidpdffile"
 else
-    tar -cf $tarfile $label
+    wirecell-pcbro fpstrips-draw-fids $fidnpzfile $fidpdffile
 fi
 
-if [ -s "$spltnpz" ] ; then
-    echo "already have $spltnpz"
-else
-    wirecell-pcbro fpstrips-tar2spltnpz "$tarfile" "$spltnpz"
-fi
-
-for pl in imp col
-do
-    spltpdf="${label}-splt-${pl}.pdf"
-    if [ -s "$spltpdf" ] ; then
-        echo "already have $spltpdf"
-    else
-        wirecell-pcbro fpstrips-draw-splt -p "$pl" "$spltnpz" "$spltpdf"
-    fi
-done
