@@ -42,6 +42,8 @@ def parse(text):
         rows.append(row)
     return numpy.array(rows)
 
+
+
 def fpzip2arrs(zfobj):
     '''Given a zipfile obj full of FP fort.NNN files, such as downloaded
     from dropbox, return corresponding numpy arrays with no processing
@@ -95,14 +97,164 @@ def fpzip2arrs(zfobj):
             block[i,:,:n] = a.T
         return block
         
+    # shape: (12*6 or 12*4, 10, many)
     return dict(col=reg([a[1] for a in sorted(arrs) if a[0] > 200]),
                 ind=reg([a[1] for a in sorted(arrs) if a[0] < 200]))
     
-def draw_fids(arrs, pdfname, start=22000, skip=10):
-    '''Make multipage pdf file with plots from arrs as from fpzip2arrs
+def fp2wct(arrs, rebin=20):
+    '''
+    Convert "raw" dict of FP arrays to WCT equivalents
 
-    The start will skip this many samples for zooming into end of
-    paths.
+    The "arrs" is as returned fpzip2arrs() into WCT equivalent.
+
+    Return dict of same keys with each array reduced in size as:
+
+        col: (12, 10, fewer)
+        ind: (12, 10, fewer)
+
+    This will:
+    - scale the 10 fort.NNN values to WCT units
+    - rebin the samples (many->fewer) periods to match WCT convention (5ns to 100ns)
+    - average along strip positions for a given impact position (6x12 or 4x12 -> 12)
+    - regularize impact positions (flip 12 impact positions for collection strip>0)
+
+    '''
+    ret = dict()
+
+    for pl, arr in sorted(arrs.items()):
+        nfids, ncols, nsamps = arr.shape
+        assert ncols == 10
+
+        # break out the current arrays
+        curs = arr[:, 4:, :]           # (nfids, 6, many)
+
+        # Reshape to pull out along-strip positions
+        curs = curs.reshape((-1, 12, 6, nsamps))
+        # Average along the strip
+        curs = numpy.mean(curs, axis=0)
+        # now have shape: (nimps=12, nstrips=6, nsamps=many)
+        
+        # FP's field calculation exploits an equivalence symmetry in
+        # the strip+hole pattern for collection which is baked into
+        # the results.  We undo it by "flipping" the impact positions
+        # for collection strips > 0.  If we had to keep distinct the
+        # positions along the strip we'd need a second flip in that
+        # direction for strip 2 but the reshape+mean negates that
+        if pl == 'col':
+            lu = list(range(12))
+            ld = list(range(12))
+            ld.reverse()
+            for ind in [1,2,3]:
+                print(f'Swapping collection strip {ind}')
+                curs[lu, ind, :] = curs[ld, ind, :]
+
+        # Zero-pad currents out to exact multiple of rebin=20 samples
+        # (nimps=12, nstrips=6, samples=mult-of-20)
+        extra = nsamps%rebin
+        if extra:
+            nrebin = nsamps + (rebin - extra)
+            newcurs = numpy.zeros((12, 6, nrebin))
+            newcurs[:,:,:nsamps] = curs
+            curs = newcurs
+
+        # Integrate over each rebin period (20 for 5ns->100ns).  This
+        # is *current* so we sum the amount of charge induced over
+        # each small sample period assuming constant current and then
+        # divide by total rebinned bin time of resulting large sample
+        # period: I_j = sum(dt_i * I_i)/sum(dt_i) where sum is over i
+        # in [j*rebin,(j+1)*rebin-1].  This simply the mean over each
+        # rebin period.
+        #
+        # Pull out a dimension over each rebin period
+        curs = numpy.mean(curs.reshape((12, 6, -1, curs.shape[-1]//20)), axis=2)
+        # shape now (12,6,nsamps/20)
+
+        # FP current is in units of electrons/microsecond and uses
+        # 10^3 electrons as the element of drifting charge.
+        norm = 1e-3 * units.eplus/units.microsecond
+        curs *= norm
+
+        # Doctor the coordintaes, first take start of every rebin
+        txyz = arr[:, :4, 0::rebin]    # (nfids, 4, many/rebin)
+        txyz = txyz.reshape((-1, 12, 4, txyz.shape[-1]))
+        # take first among 4 or 6 along strip positions as representative.
+        txyz = txyz[0]          # (12, 4, many/rebin)
+        # WCT XYZ is a cyclic permuation of FP's
+        txyz[1:,:] = numpy.roll(txyz[1:,:], 1, axis=0)
+        # units
+        txyz[0,:] *= units.microsecond
+        txyz[1:,:] *= units.millimeter
+
+        # rejoin and done
+        # print(f'txyz:{txyz.shape}, curs:{curs.shape}')
+        # shape: (12, 10, many)
+        ret[pl] = numpy.concatenate((txyz, curs), axis=1)
+    return ret
+
+def arrs2pr(wct, pitch):
+    '''Return dict of PlathResponse lists derived from from "wct" type array as from fp2wct()
+
+    Each array is assumed to be shaped as (12, 10, nsamples).
+    '''
+    from wirecell.sigproc.response.schema import PathResponse
+
+    ret = dict()
+    for pl, arr in wct.items():
+
+        twelve, ten, nticks = arr.shape
+        assert ten == 10
+        assert twelve == 12
+        nimps = 11 * 12         # 0+/-5 strips
+        block = numpy.zeros((nimps, nticks))
+
+        paths = list()
+
+        # strips 0->5
+        for pi in range(6):
+            pia = arr[pi]       # shape: (10, nticks)
+
+            # relative impact pos counting from centerline
+            rip = 5-pi
+            
+            # count strips from most negative on up
+            for istrip in range(6):
+                # column in FP table
+                col = 4 + istrip
+                resp = pia[col]
+                pitchpos = istrip*pitch - rip*pitch/2.0
+                pr = PathResponse(resp, pitchpos, wirepos=0)
+                paths.append(pr)
+                
+        # reflect upper impact pos to get negative strips 
+        for pi in range(6,12):
+            pia = arr[pi]       # shape: (10, nticks)
+
+            rip = pi - 5
+
+            for istrip in range(1,6):
+                col = 4 + istrip
+                resp = pia[col]
+                pitchpos = -istrip * pitch - pi*pitch/2.0
+                pr = PathResponse(resp, pitchpos, wirepos=0)
+                paths.append(pr)
+
+        ret[pl] = paths
+    return ret
+
+
+def draw_fp(arrs, pdfname, start=22000, skip=10):
+    '''Make multipage pdf file with diagnostic plots from FP-style arrays.
+
+    Input "arrs" holds "raw" numpy arrays as from fpzip2arrs().
+
+    The "start" sets when interesting region of the ends of paths begin.
+
+    The "skip" will decimate paths for plots that otherwise take too
+    much time or PDF file space to produce in full resolution.
+
+    Plots include unprocessed views of these arrays as well as result
+    of processing to form input to conversion to WCT form.
+
     '''
     xyz="XYZ"
 
@@ -132,7 +284,7 @@ def draw_fids(arrs, pdfname, start=22000, skip=10):
             fid_xyzp = arr[:, 1:4, start::skip]
 
             # reshape to be (nlong, ntran)
-            fidrs = numpy.asarray(range(nfids)).reshape((-1,12))
+            # fidrs = numpy.asarray(range(nfids)).reshape((-1,12))
 
             # for iset, fids in enumerate(fidrs):
             #     fig = plt.figure()
@@ -162,7 +314,11 @@ def draw_fids(arrs, pdfname, start=22000, skip=10):
             nsamps = 20 * ((arr.shape[-1] - start)//20)
             fid_w = arr[:, 4:, -nsamps:]
             fid_w = fid_w.reshape((-1, 12, 6, nsamps))
+            # average along strip direction
             fid_w = numpy.mean(fid_w, axis=0)
+
+            # transpose so next flattening makes first dimension the
+            # absolute impact position.
             fid_w = numpy.transpose(fid_w, axes=(1,0,2))
             if pl == 'col':
                 # shape: (6,12,many)
@@ -174,6 +330,7 @@ def draw_fids(arrs, pdfname, start=22000, skip=10):
                     fid_w[ind, lu, :] = fid_w[ind, ld, :]
 
             print("fid_w.shape", fid_w.shape)
+            # flatten to absolute impact position
             fid_w = fid_w.reshape((12*6, -1))
             fid_tot = 5*units.nanosecond * numpy.sum(fid_w, axis=1)
 
@@ -248,10 +405,5 @@ def draw_fids(arrs, pdfname, start=22000, skip=10):
             plt.colorbar()
             pdf.savefig(plt.gcf())
             plt.close();
-
-
-
-
-
 
 

@@ -33,11 +33,11 @@ def cli(ctx):
     ctx.ensure_object(dict)
 
 
-@cli.command("fpstrips-zip2npz")
+@cli.command("fpstrips-fp-npz")
 @click.argument("zipname")
 @click.argument("npzname")
-def fstrips_zip2npz(zipname, npzname):
-    '''Rewrite zip of fort.NNN files to faster NPZ.
+def fpstrips_fp_npz(zipname, npzname):
+    '''Rewrite zip of fort.NNN files to faster FP-style NPZ.
 
     No processing is done.  Result is two 3D arrays of shapes:
 
@@ -55,18 +55,90 @@ def fstrips_zip2npz(zipname, npzname):
     numpy.savez(npzname, **arrs)
 
 
-@cli.command("fpstrips-draw-fids")
+@cli.command("fpstrips-draw-fp")
 @click.argument("npzname")
 @click.argument("pdfname")
-def fpstrips_draw_fids(npzname, pdfname):
+def fpstrips_draw_fp(npzname, pdfname):
     '''
     Make some drawings from the untouched npz file
     '''
-    from .fpstrips import draw_fids
+    from .fpstrips import draw_fp
     arrs = numpy.load(npzname)
-    draw_fids(arrs, pdfname)
+    draw_fp(arrs, pdfname)
 
 
+@cli.command("fpstrips-wct-npz")
+@click.argument("fpnpz")
+@click.argument("wctnpz")
+def fpstrips_wct_npz(fpnpz, wctnpz):
+    '''
+    Convert FP NPZ file to WCT NPZ file
+    '''
+    from .fpstrips import fp2wct
+    fp = numpy.load(fpnpz)
+    wct = fp2wct(fp)
+    numpy.savez(wctnpz, **wct)
+
+@cli.command("convert-fpstrips")
+@click.option("--tstart", default="0",
+              help="Set time start (use units eg 100*us).")
+@click.option("--origin", default="10.0*cm",
+              help="Set drift origin (give units, eg '10*cm').")
+@click.option("--period", default="100*ns",
+              help="Set sample period time (use units eg 0.1*us).")
+@click.option("--speed", default="1.6*mm/us",
+              help="Set nominal drift speed (give untis, eg '1.6*mm/us').")
+@click.option("--pitch", type=str, default="0.5*mm",
+              help="The pitch for the new response plane")
+@click.option("--normalization", default=0.0,
+              help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
+@click.option("--zero-wire-locs", default=[0.0,0.0,0.0], nargs=3, type=float,
+              help="Set location of zero wires.  def: 0 0 0")
+@click.argument("filename")
+@click.argument("output")
+def convert_fpstrips(tstart, origin, period, speed, pitch,
+                     normalization, zero_wire_locs,
+                     filename, output):
+    '''
+    Convert FP field response data files to WCT format
+    '''
+    # fr level
+    origin = eval(origin, units.__dict__)
+    tstart = eval(tstart, units.__dict__)
+    period = eval(period, units.__dict__)
+    speed = eval(speed, units.__dict__)
+
+    # pr level
+    pitch = eval(pitch, units.__dict__)
+
+    import wirecell.sigproc.response.persist as per
+    from wirecell.sigproc.response.schema import (
+        FieldResponse, PlaneResponse)
+    from .fpstrips import fpzip2arrs, fp2wct, arrs2pr
+    if filename.endswith(".zip"):
+        zf = zipfile.ZipFile(filename, 'r')
+        fp = fpzip2arrs(zf)
+        wct = fp2wct(fp)
+    elif filename.endswith(".npz"):
+        arrs = numpy.load(filename)
+        if arrs['col'].shape[0] > 12: # FP array
+            wct = fp2wct(arrs)
+        else:                   # WCT array
+            wct = arrs
+    else:
+        print(f"Unknown data file: {filename}")
+    pathresp = arrs2pr(wct, pitch)
+
+    anti_drift_axis = (1.0, 0.0, 0.0)
+
+    planes = [
+        PlaneResponse(pathresp['ind'], 0, zero_wire_locs, pitch),
+        PlaneResponse(pathresp['ind'], 1, zero_wire_locs, pitch),
+        PlaneResponse(pathresp['col'], 2, zero_wire_locs, pitch),
+    ]
+    fr = FieldResponse(planes, anti_drift_axis,
+                       origin, tstart, period, speed)
+    per.dump(output, fr)
 
 
 @cli.command("convert-garfield")
