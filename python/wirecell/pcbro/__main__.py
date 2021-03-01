@@ -88,7 +88,7 @@ def fpstrips_wct_npz(fpnpz, wctnpz):
               help="Set sample period time (use units eg 0.1*us).")
 @click.option("--speed", default="1.6*mm/us",
               help="Set nominal drift speed (give untis, eg '1.6*mm/us').")
-@click.option("--pitch", type=str, default="0.5*mm",
+@click.option("--pitch", type=str, default="5*mm",
               help="The pitch for the new response plane")
 @click.option("--normalization", default=0.0,
               help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
