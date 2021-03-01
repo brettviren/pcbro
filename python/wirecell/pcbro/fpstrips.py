@@ -187,7 +187,7 @@ def fp2wct(arrs, rebin=20):
         # rebin period.
         #
         # Pull out a dimension over each rebin period
-        curs = numpy.mean(curs.reshape((12, 6, -1, curs.shape[-1]//20)), axis=2)
+        curs = numpy.mean(curs.reshape((12, 6, curs.shape[-1]//20 ,-1)), axis=3)
         # shape now (12,6,nsamps/20)
 
         # FP current is in units of electrons/microsecond and uses
