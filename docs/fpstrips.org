@@ -1,18 +1,24 @@
 #+title: Strips and holes
 #+subtitle: Field Responses from Francesco Pietropaolo (FP)
 
-* Inputs from FP calculation
+* Field responses from FP's calculation
 
 FP provides field response calculations using a 3D [[https://en.wikipedia.org/wiki/Finite_difference][finite difference]]
-method with boundary conditions provided by a 2D calculation.  The
-calculations are performed over a small "rectangle of symmetry" (see
-images below) and tabulated for each of 12xN paths.  The 12 span the
-equally spaced positions across the strip and which we approximately
-identify as WCT impact positions.  The N=4 (induction) and N=6
-(collection) points along the strip span the width of the rectangle of
-symmetry.  In the process of importing these fields we average over
-this direction.  For each position, a response on the central and the
-nearest 5 strips is given in the file.
+method with boundary conditions provided by a 2D calculation.  These
+are expected to work better than the "2.5D trick" fields.  To use
+them, we convert to WCT JSON form and then check signal
+processing and simulation.
+
+* Import of FP fields
+
+The calculations are performed over a small "rectangle of symmetry"
+(see images below) and tabulated for each of 12xN paths.  The 12 span
+the equally spaced positions across the strip and which we
+approximately identify as WCT impact positions.  The N=4 (induction)
+and N=6 (collection) points along the strip span the width of the
+rectangle of symmetry.  In the process of importing these fields we
+average over this direction.  For each position, a response on the
+central and the nearest 5 strips is given in the file.
 
 [[file:fpstrips-induction-rectangle-of-symmetry.png]][[file:fpstrips-collection-rectangle-of-symmetry.png]]
 
@@ -60,7 +66,7 @@ In addition for the collection set:
 
 [[file:50l-collection-symmetry.png]]
 
-* Conversion to WCT
+** Conversion to WCT
 
 For use by WCT simulation and signal processing we produce a JSON file
 with field response in WCT system of units and on WCT's convention for
@@ -84,9 +90,11 @@ wirecell-sigproc plot-response --region 0 --trange 0,120 --reflect dv-2000v.json
 As usual, the 50L detector only has two planes and "U" and "V" here
 are simply the duplicates.
 
-* Debugging
+** Debugging
 
-** FP level
+Some additional command can help with debugging intermediate values.
+
+*** FP level
 
 Two Numpy files can be produced to assist in debugging.  An "FP" file
 dumps the ~fort.xxx~ files into Numpy arrays with essentially no
@@ -102,7 +110,7 @@ The PDF includes plots showing wire vs tick displays and per wire integration sh
 Either the ~.zip~ or this ~*-fp.npz~ file can be used in the
 ~convert-fpstrips~ command.
 
-** WCT level
+*** WCT level
 
 A similar "WCT" Numpy array may also be produced.
 
@@ -114,3 +122,24 @@ No CLI is provided to plot this file, but one may explore it
 interactively.  It may also be used as input to ~convert-fpstrips~.
 
 
+
+
+* Signal processing
+
+Raw unpacking to Numpy file and plot
+
+#+begin_example
+wire-cell -A infile=/home/bv/work/pcbro/Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_159048405892.bin -A outfile=FP/raw-1590484058.npz -c cfg/cli-bin-npz.jsonnet
+
+wirecell-pcbro evd2d -t 31 --ticks 100:500 --color-map bwr --channels 0:64,64:128 '--title=Raw data from run 2020-05-26 11:07:38 trigger {trigger}' '--color-unit=ADC from baseline' --color-range=-512,0,512 --baseline-subtract median -o plots/FP/bwr/raw-159048405892-31.png FP/raw-1590484058.npz
+
+#+end_example
+
+Signal processing and plot
+
+#+begin_example
+wire-cell -A resp=dv-2000v.json.bz2 -A infile=/home/bv/work/pcbro/Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_159048405892.bin -A outfile=FP/sig-1590484058.npz -c cfg/cli-bin-sp-npz.jsonnet
+
+wirecell-pcbro evd2d -t 31 --ticks 100:500 --color-map bwr --channels 0:64,64:128 '--title=Signals from run 2020-05-26 11:07:38 trigger {trigger}' --tshift=38 --color-range=-100,0,5000 -T gauss0 -o plots/FP/bwr/sig-159048405892-31.png FP/sig-1590484058.npz
+
+#+end_example

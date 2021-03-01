@@ -181,15 +181,15 @@ The PNGs produced are committed:
 
 #+ATTR_HTML: :width 90%
 #+ATTR_ORG: :width 600
-file:pcbro-response-avg.png
+[[file:pcbro-response-avg.png]]
 
 #+ATTR_HTML: :width 90%
 #+ATTR_ORG: :width 600
-file:pcbro-response-slc0.png
+[[file:pcbro-response-slc0.png]]
 
 #+ATTR_HTML: :width 90%
 #+ATTR_ORG: :width 600
-file:pcbro-response-slc1.png
+[[file:pcbro-response-slc1.png]]
 
 
 

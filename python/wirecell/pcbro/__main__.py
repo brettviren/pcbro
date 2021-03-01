@@ -132,9 +132,9 @@ def convert_fpstrips(tstart, origin, period, speed, pitch,
     anti_drift_axis = (1.0, 0.0, 0.0)
 
     planes = [
-        PlaneResponse(pathresp['ind'], 0, zero_wire_locs, pitch),
-        PlaneResponse(pathresp['ind'], 1, zero_wire_locs, pitch),
-        PlaneResponse(pathresp['col'], 2, zero_wire_locs, pitch),
+        PlaneResponse(pathresp['ind'], 0, zero_wire_locs[0], pitch),
+        PlaneResponse(pathresp['ind'], 1, zero_wire_locs[1], pitch),
+        PlaneResponse(pathresp['col'], 2, zero_wire_locs[2], pitch),
     ]
     fr = FieldResponse(planes, anti_drift_axis,
                        origin, tstart, period, speed)

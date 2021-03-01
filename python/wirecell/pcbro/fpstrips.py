@@ -191,8 +191,9 @@ def fp2wct(arrs, rebin=20):
         # shape now (12,6,nsamps/20)
 
         # FP current is in units of electrons/microsecond and uses
-        # 10^3 electrons as the element of drifting charge.
-        norm = 1e-3 * units.eplus/units.microsecond
+        # 10^3 electrons as the element of drifting charge.  The two
+        # domains also pick opposite sign convention.
+        norm = -1e-3 * units.eplus/units.microsecond
         curs *= norm
 
         # Doctor the coordintaes, first take start of every rebin
