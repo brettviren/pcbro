@@ -102,10 +102,17 @@ def fpzip2arrs(zfobj):
                 ind=reg([a[1] for a in sorted(arrs) if a[0] < 200]))
     
 def fp2wct(arrs, rebin=20):
-    '''
-    Convert "raw" dict of FP arrays to WCT equivalents
+    '''Convert dict of FP arrays to WCT equivalents
 
-    The "arrs" is as returned fpzip2arrs() into WCT equivalent.
+    The "arrs" dict is as returned fpzip2arrs() into WCT equivalent.
+
+    The array values in the dict are of shapes:
+
+        col: (72, 10, many)
+        ind: (48, 10, many)
+
+    The ordering of the 72 or 48 paths are as-provided by FP.  They
+    are assumed to be pitch-major ordered.
 
     Return dict of same keys with each array reduced in size as:
 
@@ -121,18 +128,32 @@ def fp2wct(arrs, rebin=20):
     '''
     ret = dict()
 
+
     for pl, arr in sorted(arrs.items()):
         nfids, ncols, nsamps = arr.shape
         assert ncols == 10
 
+        # nfids=(nlong*npitch), pitch-major ordering
+
         # break out the current arrays
         curs = arr[:, 4:, :]           # (nfids, 6, many)
+        print(f'{pl} input curs {curs.shape}')
 
-        # Reshape to pull out along-strip positions
+        # with PdfPages(f'debug-{pl}.pdf') as pdf:
+        #     print(f'{pl} write debug PDF')
+        #     junk = curs.reshape(-1, 12, 6, nsamps)[0].transpose((1,0,2)).reshape(12*6,nsamps)
+        #     start=int(nsamps*0.95)
+        #     plt.imshow(junk[:,start:], aspect='auto',
+        #                interpolation='none')
+        #     pdf.savefig(plt.gcf())
+        #     plt.close();
+
+        # Reshape to pull out along-strip positions as dim 0
         curs = curs.reshape((-1, 12, 6, nsamps))
         # Average along the strip
         curs = numpy.mean(curs, axis=0)
         # now have shape: (nimps=12, nstrips=6, nsamps=many)
+        print(f'{pl} after mean {curs.shape}')
         
         # FP's field calculation exploits an equivalence symmetry in
         # the strip+hole pattern for collection which is baked into
@@ -179,11 +200,13 @@ def fp2wct(arrs, rebin=20):
         txyz = txyz.reshape((-1, 12, 4, txyz.shape[-1]))
         # take first among 4 or 6 along strip positions as representative.
         txyz = txyz[0]          # (12, 4, many/rebin)
+        #print(f'{pl} fp {txyz.shape} coords: {txyz[:,:,0]}')
         # WCT XYZ is a cyclic permuation of FP's
         txyz[1:,:] = numpy.roll(txyz[1:,:], 1, axis=0)
         # units
         txyz[0,:] *= units.microsecond
         txyz[1:,:] *= units.millimeter
+        #print(f'{pl} wc {txyz.shape} coords: {txyz[:,:,0]}')
 
         # rejoin and done
         # print(f'txyz:{txyz.shape}, curs:{curs.shape}')
@@ -201,44 +224,54 @@ def arrs2pr(wct, pitch):
     ret = dict()
     for pl, arr in wct.items():
 
+        print(f'{pl} input shape {arr.shape}')
+
+        with PdfPages(f'debug-{pl}.pdf') as pdf:
+            print(f'{pl} write debug PDF')
+            junk = arr[:, 4:, :].transpose((1,0,2)).reshape(12*6,-1)
+            plt.imshow(junk, aspect='auto',
+                       interpolation='none')
+            plt.colorbar()
+            pdf.savefig(plt.gcf())
+            plt.close();
+
         twelve, ten, nticks = arr.shape
         assert ten == 10
         assert twelve == 12
-        nimps = 11 * 12         # 0+/-5 strips
-        block = numpy.zeros((nimps, nticks))
 
         paths = list()
 
-        # strips 0->5
-        for pi in range(6):
+        # map lower impact positions of FP strips to lower impact
+        # positions of lower (0 and negative) WCT strips.
+        for pi in range(6,12):  # FP impact positions
             pia = arr[pi]       # shape: (10, nticks)
+            assert pia.shape[0] == 10
 
-            # relative impact pos counting from centerline
-            rip = 5-pi
-            
-            # count strips from most negative on up
+            # count strips in FP table
             for istrip in range(6):
                 # column in FP table
                 col = 4 + istrip
                 resp = pia[col]
-                pitchpos = istrip*pitch - rip*pitch/2.0
+                pitchpos = (-istrip - (pi-6)/10.0)*pitch
                 pr = PathResponse(resp, pitchpos, wirepos=0)
                 paths.append(pr)
                 
-        # reflect upper impact pos to get negative strips 
-        for pi in range(6,12):
+        # map upper impact positions of FP strips to lower impact
+        # positions of upper (1,2,3,4,5) WCT strips.
+        for pi in range(0,6):   # FP impact positions
             pia = arr[pi]       # shape: (10, nticks)
+            assert pia.shape[0] == 10
 
-            rip = pi - 5
-
+            # count strips in FP table
             for istrip in range(1,6):
                 col = 4 + istrip
                 resp = pia[col]
-                pitchpos = -istrip * pitch - pi*pitch/2.0
+                pitchpos = (istrip - (5-pi)/10.0) * pitch
                 pr = PathResponse(resp, pitchpos, wirepos=0)
                 paths.append(pr)
 
         ret[pl] = paths
+        print(f'{pl} make {len(paths)} paths')
     return ret
 
 
