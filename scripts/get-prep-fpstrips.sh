@@ -10,8 +10,11 @@ dburl="$2"
 shift 2
 
 zipfile="${label}.zip"
-fidnpzfile="${label}-fid.npz"
-fidpdffile="${label}-fid.pdf"
+fpnpzfile="${label}-fp.npz"
+fppdffile="${label}-fp.pdf"
+wctnpzfile="${label}-wct.npz"
+jsonfile="${label}.json.bz2"
+pltfile="docs/${label}.png"
 
 if [ -s "$zipfile" ] ; then
     echo "already have $zipfile"
@@ -19,15 +22,35 @@ else
     wget -O "$zipfile" "$dburl" || exit -1
 fi
 
-if [ -s "$fidnpzfile" ] ; then
-    echo "already have $fidnpzfile"
+if [ -s "$fpnpzfile" ] ; then
+    echo "already have $fpnpzfile"
 else
-    wirecell-pcbro fpstrips-zip2npz "$zipfile" "$fidnpzfile"
+    wirecell-pcbro fpstrips-fp-npz "$zipfile" "$fpnpzfile"
 fi
 
-if [ -s "$fidpdffile" ] ; then
-    echo "already have $fidpdffile"
+if [ -s "$fppdffile" ] ; then
+    echo "already have $fppdffile"
 else
-    wirecell-pcbro fpstrips-draw-fids $fidnpzfile $fidpdffile
+    wirecell-pcbro fpstrips-draw-fp $fpnpzfile $fppdffile
 fi
+
+if [ -s "$wctnpzfile" ] ; then
+    echo "already have $wctnpzfile"
+else
+    wirecell-pcbro fpstrips-wct-npz "$fpnpzfile" "$wctnpzfile"
+fi
+
+if [ -s "$jsonfile" ] ; then
+    echo "already have $jsonfile"
+else
+    wirecell-pcbro convert-fpstrips "$zipfile" "$jsonfile"
+fi
+
+if [ -s "$pltfile" ] ; then
+    echo "already have $pltfile"
+else
+    wirecell-sigproc plot-response --region 0 --trange 0,120 --reflect "$jsonfile" "$pltfile"
+fi
+
+
 

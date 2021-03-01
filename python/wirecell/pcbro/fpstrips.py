@@ -426,7 +426,7 @@ def draw_fp(arrs, pdfname, start=22000, skip=10):
             log_w = lg10(wct_w / units.picoampere)
             fig = plt.figure()
             ax = fig.add_subplot(111)
-            plt.title(f'{pl} response, WCT scale and sample, "log10"')
+            plt.title(f'{pl} response, WCT scale and sample, "log10+5"')
             norm = mpl.colors.TwoSlopeNorm(vmin=numpy.min(log_w),
                                            vcenter=0.0,
                                            vmax=numpy.max(log_w))

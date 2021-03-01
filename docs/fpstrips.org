@@ -1,11 +1,27 @@
-#+title Strips and holes
-#+subtitle Field Responses from Francesco Pietropaolo
+#+title: Strips and holes
+#+subtitle: Field Responses from Francesco Pietropaolo (FP)
 
-* Input from FP calculation
+* Inputs from FP calculation
 
-The raw results are provided as zip archive of tabular data files.
-Each has 48 usable files like ~fort.xxx~ with ~xxx=150+i+12*(j-1)~.
-There is an extra ~fort.199~ providing an average.
+FP provides field response calculations using a 3D [[https://en.wikipedia.org/wiki/Finite_difference][finite difference]]
+method with boundary conditions provided by a 2D calculation.  The
+calculations are performed over a small "rectangle of symmetry" (see
+images below) and tabulated for each of 12xN paths.  The 12 span the
+equally spaced positions across the strip and which we approximately
+identify as WCT impact positions.  The N=4 (induction) and N=6
+(collection) points along the strip span the width of the rectangle of
+symmetry.  In the process of importing these fields we average over
+this direction.  For each position, a response on the central and the
+nearest 5 strips is given in the file.
+
+[[file:fpstrips-induction-rectangle-of-symmetry.png]][[file:fpstrips-collection-rectangle-of-symmetry.png]]
+
+
+
+The raw results are downloaded from FP's online store to produce a zip
+file holding 48 (induction) or 72 (collection) files named like
+~fort.xxx~ with ~xxx=S+i+12*(j-1)~ with ~s=150~ (induction) or ~s=200~
+(collection).  Additional ~fort.xxx~ files should be ignored.
 
 Each file is about 4MB with 10 columns:
 
@@ -20,6 +36,8 @@ Each file is about 4MB with 10 columns:
 9. current on strip +4
 10. current on strip +5
 
+Notes from FP:
+
 - The current is given in electron/microseconds and is the one induced by 10^3 electrons
 
 - The electric field used for the calculation is 500 V/cm and the temperature is 87.7 K (both as in the 50 liter TPC). 
@@ -27,37 +45,72 @@ Each file is about 4MB with 10 columns:
 - The corresponding drift velocity is obtained with the BNL parametrization (verified as Xin suggested).
 
 - First point is at t=0 and drift location 200mm
+
 - Last point is at t ~ 120us and drift location 16.7mm 
+
+In addition for the collection set:
 
 - In the same dropbox folder there are now the collection signals as well.
 
-- There are 72 files, numbers from 201 to 272, corresponding to electron trajectories in a 12 x 6 array covering an area of 5 mm (across the strip) x 2.5 mm.
+- The 72 collection files, numbers from 201 to 272, corresponding to electron trajectories in a 12 x 6 array covering an area of 5 mm (across the strip) x 2.5 mm.
 
 - The normalization is the same (10^3 electrons) as for the induction
 
+- A path equivalence symmetry is exploited as illustrated in:
 
-These unit tests prepare the input tar file.
+[[file:50l-collection-symmetry.png]]
+
+* Conversion to WCT
+
+For use by WCT simulation and signal processing we produce a JSON file
+with field response in WCT system of units and on WCT's convention for
+impact position.  Given the ZIP file of ~fort.xxx~ run:
 
 #+begin_example
-  $ bats -f '(download|unpack|repack)' test/test_fpstrips.bats 
+wirecell-pcbro convert-fpstrips dv-2000v.zip dv-2000v.json.bz2 
 #+end_example
 
-* Diagnostic plots
+A copy of that file is at: https://www.phy.bnl.gov/~bviren/tmp/pcbro/dv-2000v.json.bz2
 
-Using the tar files from above.
+The WCT "standard" response plot can be made from this file like:
 
 #+begin_example
-  $ wirecell-pcbro fpstrips-draw -T "FP" data/fpstrips/DV-1000V.tar.gz dv-1000v-paths-fp.pdf
-  $ wirecell-pcbro fpstrips-draw -T "FP" data/fpstrips/DV-2000V.tar.gz dv-2000v-paths-fp.pdf
+wirecell-sigproc plot-response --region 0 --trange 0,120 --reflect dv-2000v.json.bz2 dv-2000v-wct.png
 #+end_example
 
-The ~-T~ simply sets a title.  Plots are shown in FP's coordinate system.
+#+ATTR_HTML: :width 90%
+[[file:dv-2000v-wct.png]]
 
-* Transform to WCT response JSON file
+As usual, the 50L detector only has two planes and "U" and "V" here
+are simply the duplicates.
 
-~wirecell-pcbro~ will produce a WCT response file in JSON format from
-these datasets.
+* Debugging
+
+** FP level
+
+Two Numpy files can be produced to assist in debugging.  An "FP" file
+dumps the ~fort.xxx~ files into Numpy arrays with essentially no
+processing and from it a PDF of diagnostic plots can be created.
+
+#+begin_example
+wirecell-pcbro fpstrips-fp-npz  dv-2000v.zip dv-2000v-fp.npz
+wirecell-pcbro fpstrips-draw-fp dv-2000v-fp.npz dv-2000v-fp.pdf    
+#+end_example
+
+The PDF includes plots showing wire vs tick displays and per wire integration showing good normalization.
+
+Either the ~.zip~ or this ~*-fp.npz~ file can be used in the
+~convert-fpstrips~ command.
+
+** WCT level
+
+A similar "WCT" Numpy array may also be produced.
+
+#+begin_example
+wirecell-pcbro fpstrips-wct-npz  dv-2000v-fp.npz dv-2000v-wct.npz
+#+end_example
+
+No CLI is provided to plot this file, but one may explore it
+interactively.  It may also be used as input to ~convert-fpstrips~.
 
 
-
-  
