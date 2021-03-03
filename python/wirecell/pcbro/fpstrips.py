@@ -12,7 +12,7 @@ import pylab
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-# from wirecell.sigproc.response.plots import lg10
+
 def lg10(arr, eps = 1e-5):
     shape = arr.shape
     arr = numpy.array(arr).reshape(shape[0]*shape[1])
@@ -207,7 +207,17 @@ def fp2wct(arrs, rebin=20):
         # units
         txyz[0,:] *= units.microsecond
         txyz[1:,:] *= units.millimeter
-        #print(f'{pl} wc {txyz.shape} coords: {txyz[:,:,0]}')
+        # print(f'{pl} wc {txyz.shape} coords: {txyz[:,:,0]}')
+
+        # append final zero sample
+        shape = list(txyz.shape)
+        shape[-1] = -1
+        txyz = numpy.concatenate((txyz, txyz[:,:,-1].reshape(shape)), axis=2)
+        txyz[:,:,-1] += txyz[:,:,1] - txyz[:,:,0]
+
+        shape = list(curs.shape)
+        shape[-1] = 1
+        curs = numpy.concatenate((curs, numpy.zeros(shape)), axis=2)
 
         # rejoin and done
         # print(f'txyz:{txyz.shape}, curs:{curs.shape}')

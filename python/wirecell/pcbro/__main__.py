@@ -325,12 +325,15 @@ def gen_wires(output_file):
               help="Shift data this many ticks")
 @click.option("--ticks", default="0:600",
               help="Colon-separated range of ticks")
+@click.option("--mask-min", default=None,
+              help="Mask any values less than this value, if given")
 @click.option("-o","--output",default="plot.pdf",
               help="Output file")
 @click.argument("npzfile")
 def evd2d(baseline_subtract, tag, trigger, aspect,
           title, color_range, color_unit, color_map,
-          cnames, channels, tshift, ticks, output, npzfile):
+          cnames, channels, tshift, ticks, mask_min,
+          output, npzfile):
     '''
     Plot waveforms of a trigger from file
     '''
@@ -362,6 +365,9 @@ def evd2d(baseline_subtract, tag, trigger, aspect,
                   vcenter=color_range[1],
                   vmax=color_range[2])
 
+    if mask_min is not None:
+        mask_min = float(mask_min)
+
     tt = list(map(int, ticks.split(":")))
     channels = [list(map(int, ss.strip().split(":"))) for ss in channels.split(",")]
     nplanes = len(channels)
@@ -370,10 +376,12 @@ def evd2d(baseline_subtract, tag, trigger, aspect,
         cc = channels[pind]
         ax = axes[pind]
         sa = a[tt[0]-tshift:tt[1]-tshift, cc[0]:cc[1]]
+        if mask_min is not None:
+            sa = numpy.ma.masked_where(sa <= mask_min, sa)
         im = ax.imshow(sa, cmap=color_map, aspect=aspect, interpolation='none',
                        norm=norm, extent=[cc[0],cc[1],tt[1],tt[0]])
         ax.set_xlabel(f'{cnames[pind]} channels [IDs]')
-        ax.set_xticks
+        # ax.set_xticks
     axes[0].set_ylabel('sample period [count]')
     c = fig.colorbar(im)
     c.set_label(color_unit)

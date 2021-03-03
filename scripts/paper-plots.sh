@@ -1,13 +1,24 @@
 #!/bin/bash
 
+if [ -z "$1" ] ; then
+    for n in 2D 3D
+    do
+        $0 $n
+    done
+    exit 0
+fi
+
+
 label="$1" ; shift
-if [ "$label" = "2.5D" ] ; then
+if [ "$label" = "2D" ] ; then   # 2.5D trick
     RESFILE=pcbro-response-avg.json.bz2
-elif [ "$label" = "FP" ] ; then
+    sig_title="2.5D trick"
+elif [ "$label" = "3D" ] ; then # FP's 3D->2D
     RESFILE=dv-2000v.json.bz2
+    sig_title="3D->2D"
 else
     echo "Unknown label: $label"
-    echo "try 2.5D or FP"
+    echo "try 2D or 3D"
     exit -1
 fi
 
@@ -41,19 +52,35 @@ fi
 
 
 trigger=31
-ticks='100:500'
 channels='0:64,64:128'
 # cmap='viridis'
 # cmap='plasma'
 # cmap='bwr'
 # cmap='prism'
 
-for cmap in bwr viridis
+# gray binary
+for cmap in best  # bwr seismic viridis 
 do
-    outdir="plots/$label/$cmap"
+    outdir="plots/$cmap"
     mkdir -p $outdir
 
-    common_args="-t $trigger --ticks $ticks --color-map $cmap --channels $channels"
+    common_args="-t $trigger --channels $channels"
+    raw_cmap=$cmap
+    sig_cmap=$cmap
+    raw_args="--color-range=-512,0,512"
+    sig_args="--color-range=-100,0,5000"
+    if [ "$cmap" = "best" ] ; then
+        raw_cmap=seismic
+        sig_cmap=nipy_spectral
+        raw_args="--color-range=-300,0,300"
+        sig_args="--color-range=0,5000,20000 --mask-min=0"
+    fi
+
+    raw_ticks="--ticks 100:550 --tshift -12"
+    sig_ticks="--ticks 100:550 --tshift +20"
+    if [ "$label" = "3D" ] ; then
+        sig_ticks="--ticks 0:450"
+    fi
 
     for ext in png pdf
     do
@@ -63,7 +90,8 @@ do
             evd2d $common_args \
             --title="Raw data from run $timestamp trigger {trigger}" \
             --color-unit="ADC from baseline" \
-            --color-range='-512,0,512' \
+            --color-map $raw_cmap \
+            $raw_args $raw_ticks \
             --baseline-subtract median \
             -o $outdir/raw-${TSDS}-${trigger}.$ext $RAWNPZ
 
@@ -71,11 +99,11 @@ do
         ## SIG
         wirecell-pcbro \
             evd2d $common_args \
-            --title="Signals from run $timestamp trigger {trigger}" \
-            --tshift=38 \
-            --color-range='-100,0,5000' \
+            --title="Signals from run $timestamp trigger {trigger} ($sig_title)" \
+            --color-map $sig_cmap \
+            $sig_args $sig_ticks \
             -T gauss0 \
-            -o $outdir/sig-${TSDS}-${trigger}.$ext $SIGNPZ
+            -o $outdir/sig-${TSDS}-${trigger}-${label}.$ext $SIGNPZ
     done
 done
 

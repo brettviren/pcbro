@@ -13,3 +13,9 @@ junk.*
 auto
 latexmk-out
 data
+.snakemake
+*.html
+feh_*_filelist
+*.tar
+*.tar.gz
+*.zip
