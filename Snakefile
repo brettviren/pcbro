@@ -9,50 +9,50 @@ FPSAMPLES = ["dv-2000v", "dv-2000v-h2mm0", "dv-2000v-h2mm5"]
 # The 50L DAQ run timestamps we want to process
 TIMESTAMPS = [s for s in open("scripts/rawdata-2020-05-26.stamps").read().split('\n') if s.strip()]
 
-workdir: os.environ.get("PCBRO_DATADIR", "/home/bv/work/pcbro/fp")
+workdir: os.environ.get("PCBRO_DATADIR", "/home/bv/work/pcbro")
 
 # Make intermediate NPZ file from FP zip file
 rule fpnpxfile:
     input: 
-        "{sample}-fixed.tgz"
+        "fp/{resp}-fixed.tgz"
     output:
-        "{sample}-fp.npz"
+        "fp/{resp}-fp.npz"
     shell:
         "wirecell-pcbro fpstrips-fp-npz {input} {output}"
 
 # Make a PDF vis of FP data
 rule fppdffile:
     input:
-        "{sample}-fp.npz"
+        "fp/{resp}-fp.npz"
     output:
-        "{sample}-fp.pdf"
+        "fp/{resp}-fp.pdf"
     shell:
         "wirecell-pcbro fpstrips-draw-fp {input} {output}"
 
 # Make intermediate NPZ file following WCT units/layout
 rule wctnpzfile:
     input:
-        "{sample}-fp.npz"
+        "fp/{resp}-fp.npz"
     output:
-        "{sample}.npz"
+        "fp/{resp}.npz"
     shell:
         "wirecell-pcbro fpstrips-wct-npz {input} {output}"
 
 # Make WCT field response JSON file from FP zip file
 rule wctjsonfile:
     input:
-        "{sample}-fixed.tgz"
+        "fp/{resp}-fixed.tgz"
     output:
-        "{sample}.json.bz2"
+        "{resp}.json.bz2"
     shell:
         "wirecell-pcbro convert-fpstrips {input} {output}"
 
 # Make standard WCT field response plots
 rule fieldplots:
     input:
-        "{sample}.json.bz2"
+        "{resp}.json.bz2"
     output:
-        "{sample}.png"
+        "fp/{resp}.png"
     shell:
         "wirecell-sigproc plot-response --region 0 --trange 0,120 --reflect {input} {output}"
 
@@ -60,43 +60,42 @@ rule fieldplots:
 # Run field response file preperation for all known samples
 rule fieldprep:
     input:
-        expand("{sample}.json.bz2", sample=FPSAMPLES) \
-            + expand("{sample}-fp.pdf", sample=FPSAMPLES)
-            + expand("{sample}.png", sample=FPSAMPLES)
-
-rule wctproc:
-    input:
-        expand("data/raw-{sample}.npz", sample=TIMESTAMPS) \
-            + expand("data/sig-{sample}.npz", sample=TIMESTAMPS) \
-            + expand("data/sig-active-{sample}.npz", sample=TIMESTAMPS)
+        expand("{resp}.json.bz2", resp=FPSAMPLES) \
+            + expand("fp/{resp}-fp.pdf", resp=FPSAMPLES)
+            + expand("fp/{resp}.png", resp=FPSAMPLES)
 
 
+# Decode raw 50L data into NPZ
 rule decode:
-    params:
-        datadir = os.environ.get("PCBRO_DATADIR", "/home/bv/work/pcbro")
     input:
-        "{params.datdir}/Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_{sample}.bin"
+        "Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_{timestamp}.bin"
     output:
-        "data/raw-{sample}.npz"
+        "proc/raw-{timestamp}.npz"
     shell:
-        "wire-cell -A infile={input} -A outfile={output} -c cfg/cli-bin-npz.jsonnet"
+        "wire-cell -A infile={input} -A outfile={output} -c cli-bin-npz.jsonnet"
 
-
+# Run sigproc from raw 50L data
 rule sigproc:
-    params:
-        datadir = os.environ.get("PCBRO_DATADIR", "/home/bv/work/pcbro")
     input:
-        "{params.datadir}/Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_{sample}.bin"
+        data = "Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_{timestamp}.bin",
+        resp = "{resp}.json.bz2"
     output:
-        "data/sig-{sample}.npz"
+        "proc/sig-{resp}-{timestamp}.npz"
     shell:
-        "wire-cell -A resp=dv-2000v.json.bz2 -A infile={input} -A outfile={output} -c cfg/cli-bin-sp-npz.jsonnet"
+        "wire-cell -A resp={input.resp} -A infile={input.data} -A outfile={output} -c cli-bin-sp-npz.jsonnet"
     
 
 rule activity:
     input:
-        "data/sig-{sample}.npz"
+        "proc/sig-{resp}-{timestamp}.npz"
     output:
-        "data/sig-active-{sample}.npz"
+        "proc/sig-active-{resp}-{timestamp}.npz"
     shell:
         "wirecell-pcbro activity -t 1000000 {input} {output}"
+
+# Roll up everything
+rule wctproc:
+    input:
+        expand("proc/raw-{timestamp}.npz", timestamp=TIMESTAMPS) \
+            + expand("proc/sig-{resp}-{timestamp}.npz", resp=FPSAMPLES, timestamp=TIMESTAMPS) \
+            + expand("proc/sig-active-{resp}-{timestamp}.npz", resp=FPSAMPLES, timestamp=TIMESTAMPS)
