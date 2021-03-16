@@ -82,13 +82,16 @@ def ts_from_bin(binname):
     secs = secs_from_centiseconds(parts[-1])
     return cern_time_from_secs(secs)
 
-def ds_from_50l_npz(npzname, name='', run=''):
+def ds_from_50l_npz(npzname, tier=None, name='', run=''):
     'Return Dataset from a 50-L NPZ file assuming conventions'
     arrs = numpy.load(npzname)
-    if npzname.startswith("sig"):
+
+    # these are pretty dicey:
+    if tier is None and "sig-" in npzname:
         tier="sig"
-    if npzname.startswith("raw"):
+    if tier is None and "raw-" in npzname:
         tier="raw"
+
     return Dataset50L(arrs, tier=tier, name=name, run=run)
 
 class Main:
@@ -132,6 +135,14 @@ class Main:
 
     def __getattr__(self, key):
         return self._opts[key]
+
+    def reload(self, dataset):
+        '''
+        Swap in a new dataset
+        '''
+        self.ds = dataset
+        self.trignum = self.ds.trigs[0]
+        self.draw()
 
     def set_option(self, key, value):
         if key in self._opts:
@@ -216,8 +227,10 @@ class Main:
                         trignum=self.trignum,
                         ntrigs=len(self.ds.trigs))
 
-    def sformat(self, template):
-        return template.format(**self.as_dict)
+    def sformat(self, template, **extra):
+        d = self.as_dict
+        d.update(extra)
+        return template.format(**d)
 
     @property
     def tshift(self):
@@ -267,7 +280,7 @@ class Main:
             bshrink = -src_t0
             if bshrink > 0:
                 tgt_t0 += bshrink
-                tgt_dt -= bstrink
+                tgt_dt -= bshrink
                 src_dt -= bshrink
                 src_t0 = 0
             tshrink = src_t0 + src_dt - frame.shape[0]
@@ -280,8 +293,10 @@ class Main:
             sa[tgt_t0:tgt_t0+tgt_dt,:] += numpy.array(frame[src_t0:src_t0+src_dt, cc[0]:cc[1]])
 
             if self.mask_min is not None:
-                sa = numpy.ma.masked_where(sa < self.mask_min, sa)
-
+                sa = numpy.ma.masked_where(sa <= self.mask_min, sa)
+            totp = numpy.sum(sa[sa>0])
+            totm = numpy.sum(sa[sa<0])
+            print(self.sformat('{name} totals: {totm} {totp}', totm=totm, totp=totp))
             im = ax.imshow(sa, interpolation='none',
                            norm=norm,
                            cmap=self.color_map,
@@ -312,6 +327,9 @@ class MainN:
         self.mains = mains
         for k,v in kwds.items():
             self.set_option(k,v)
+    def reload(self, datasets):
+        for m,d in zip(self.mains, datasets):
+            m.reload(d)
 
     def draw(self):
         for m in self.mains:
@@ -343,19 +361,68 @@ def plot_figures(figures, nrows = 1, ncols=1):
         axeslist.ravel()[ind].set_axis_off()
     plt.tight_layout() # optional
 
-def test():
 
-    run='Tue May 26 11:07:38 2020'
-    raw = ds_from_50l_npz("raw.npz", name="Decoded", run=run)
-    sig = ds_from_50l_npz("sig.npz", name="Signal", run=run)
+
+def ts_from_npz(npzname):
+    'Return a run timestamp by parsing xxx-<ts>.npz file name'
+    parts = os.path.splitext(os.path.basename(npzname))[0].split("-")
+    secs = secs_from_centiseconds(parts[-1])
+    return cern_time_from_secs(secs)
+
+
+def sig(sf):
+    '''
+    Make a signal display from a sig-*.npz file
+    '''
+    sig = ds_from_50l_npz(sf, name="Signal", run='many')
+
+    disp = Main(sig, tag='gauss0',
+                mask_min=0.0,
+                color_map='nipy_spectral',
+                ticks='0:650')
+    disp.draw()
+    return disp
+
+
+def rawsig(rf, sf):
+    '''Make a raw+signal display from two corresponding files named like
+    raw-<centiseconds>.npz and sig-<centiseconds>.npz
+    '''
+
+    raw_ts = ts_from_npz(rf)
+    sig_ts = ts_from_npz(sf)
+    if raw_ts != sig_ts:
+        raise ValueError(f'files do not match: {rf}, {sf}')
+
+    run = raw_ts
+    raw = ds_from_50l_npz(rf, name="Decoded", run=run)
+    sig = ds_from_50l_npz(sf, name="Signal", run=run)
 
     rm = Main(raw, baseline_subtract="median")
     sm = Main(sig, tag='gauss0', mask_min=0.0)
+
     disp = MainN([rm, sm], ticks='250:650')
 
+    disp.mains[0].set_option('color_map','bwr')
+    disp.mains[1].set_option('color_map','nipy_spectral')
+    disp.mains[1].set_option('mask_min', 0) 
+    disp.set_option('ticks','0:650')
 
-    disp.fwd(21)
-    disp.fwd()
+    disp.draw()
     
     return disp
+
+def rerawsig(disp, rf, sf):
+    'Reload disp with mains for raw and sig files'
+    
+    raw_ts = ts_from_npz(rf)
+    sig_ts = ts_from_npz(sf)
+    if raw_ts != sig_ts:
+        raise ValueError(f'files do not match: {rf}, {sf}')
+
+    run = raw_ts
+    raw = ds_from_50l_npz(rf, name="Decoded", run=run)
+    sig = ds_from_50l_npz(sf, name="Signal", run=run)
+
+    disp.reload([raw,sig])
 

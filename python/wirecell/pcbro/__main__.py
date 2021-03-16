@@ -9,10 +9,30 @@ import click
 from wirecell import units
 import numpy
 import zipfile
+import tarfile
 
 import wirecell.pcbro.garfield as pcbgf
 import wirecell.pcbro.draw as pcbdraw
 import wirecell.pcbro.holes as pcbholes
+import wirecell.sigproc.garfield as wctgf
+
+def zipgen(fname):
+    zf = zipfile.ZipFile(fname, 'r')
+    for fname in zf.namelist():
+        with zf.open(fname) as fp:
+            text = fp.read().decode()
+            yield fname, text
+
+
+def archfile(fname):
+    '''
+    Read .zip, .tar, .tgz archive of files
+    '''
+    if fname.endswith(".zip"):
+        return zipgen(fname)
+    elif fname.endswith(".tgz"):
+        return wctgf.asgenerator(fname)
+    raise ValueError(f'unsupported file: {fname}')
 
 def sourceme(source):
     '''
@@ -34,10 +54,10 @@ def cli(ctx):
 
 
 @cli.command("fpstrips-fp-npz")
-@click.argument("zipname")
+@click.argument("infile")
 @click.argument("npzname")
-def fpstrips_fp_npz(zipname, npzname):
-    '''Rewrite zip of fort.NNN files to faster FP-style NPZ.
+def fpstrips_fp_npz(infile, npzname):
+    '''Rewrite zip/tar of fort.NNN files to faster FP-style NPZ.
 
     No processing is done.  Result is two 3D arrays of shapes:
 
@@ -50,8 +70,9 @@ def fpstrips_fp_npz(zipname, npzname):
 
     '''
     from .fpstrips import fpzip2arrs
-    zf = zipfile.ZipFile(zipname, 'r')
-    arrs = fpzip2arrs(zf)
+
+    af = archfile(infile)
+    arrs = fpzip2arrs(af)
     numpy.savez(npzname, **arrs)
 
 
@@ -115,9 +136,9 @@ def convert_fpstrips(tstart, origin, period, speed, pitch,
     from wirecell.sigproc.response.schema import (
         FieldResponse, PlaneResponse)
     from .fpstrips import fpzip2arrs, fp2wct, arrs2pr
-    if filename.endswith(".zip"):
-        zf = zipfile.ZipFile(filename, 'r')
-        fp = fpzip2arrs(zf)
+    if osp.splitext(filename)[-1] in (".zip",".tar",".tgz"):
+        af = archfile(filename)
+        fp = fpzip2arrs(af)
         wct = fp2wct(fp)
     elif filename.endswith(".npz"):
         arrs = numpy.load(filename)
@@ -300,6 +321,7 @@ def gen_wires(output_file):
     text = wires.generate()
     open(output_file,"wb").write(text.encode('ascii'))
 
+
 @cli.command("evd2d")
 @click.option("--baseline-subtract", type=click.Choice(['median','']), default='',
              help="Apply baseline subtraction method")
@@ -478,16 +500,55 @@ def activity(threshold, minimum, npzfile, npzout):
     for k in fp.keys():
         if not k.startswith("frame_"):
             continue
+        trignum = int(k.split("_")[-1])
+        if trignum >= 49:
+            continue
+
         a = fp[k]
         c = a[:,:64]
         cn = numpy.array(c - numpy.median(c, axis=0))
-        act = numpy.sum(cn[cn>5])
-        if act < 5000.0:
+        col = cn[:,0:32]
+        tcol = numpy.sum(col[col>minimum])
+        if tcol < threshold:
+            continue
+        ind = cn[:,32:64]
+        tind = numpy.sum(ind[ind>minimum])
+        if tind < threshold:
             continue
         arrays[k] = a
         print (f'save {k}')
     numpy.savez(npzout, **arrays)
         
+@cli.command("npzjoin")
+@click.option("-t","--tag", default="gauss0",
+              help="Which tag to select")
+@click.option("-o","--output", default="joined.npz",
+              type=click.Path(exists=False),
+              help="Give output NPZ file name")
+@click.argument("npzfiles", nargs=-1)
+def npzjoin(output, tag, npzfiles):
+    '''Join frames across set of npz files to one.  Rewrite trigger
+    numbers.
+    '''
+    if os.path.exists(output):
+        raise RuntimeError(f'will not overwrite existing file: {output}')
+
+    want = f"frame_{tag}_"
+    newtrig=0
+    arrays = dict()
+    for npzfile in npzfiles:
+        print(npzfile)
+        ts = os.path.splitext(npzfile)[0].split("-")[-1]
+        ts = ts[:-2]
+        fp = numpy.load(npzfile)
+        for k,arr in fp.items():
+            if not k.startswith(want):
+                continue
+            _, tag,trig = k.split('_')
+            arrays[f'frame_{tag}_{ts}{newtrig:02d}'] = arr
+            newtrig += 1
+    numpy.savez(output, **arrays)
+    
 
 def main():
     cli(obj=dict())

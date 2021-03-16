@@ -43,16 +43,12 @@ def parse(text):
     return numpy.array(rows)
 
 
+def fpzip2arrs(datgen):
+    '''Given a data generator yielding (filename, text) from an archive of
+    FP's fort.NNN files, such as downloaded from dropbox, return
+    corresponding numpy arrays with no processing
 
-def fpzip2arrs(zfobj):
-    '''Given a zipfile obj full of FP fort.NNN files, such as downloaded
-    from dropbox, return corresponding numpy arrays with no processing
-
-    eg, pass in 
-
-    >>> zfobj = zipfile.ZipFile('dv-2000v.zip', 'r')
-
-    return dict keyed by ("col", "ind") with values of 3D array with
+    Return dict keyed by ("col", "ind") with values of 3D array with
     layout that spans dimensions of:
 
         (<fid>, <column>, <sample>) 
@@ -70,7 +66,8 @@ def fpzip2arrs(zfobj):
 
     arrs = list()
 
-    for fname in zfobj.namelist():
+    for path, text in datgen:
+        fname = osp.basename(path)
         if len(fname) != 8:
             print(f"skipping {fname}")
             continue
@@ -80,16 +77,16 @@ def fpzip2arrs(zfobj):
             print(f"skipping {fname}")
             continue
 
-        with zfobj.open(fname) as fp:
-            text = fp.read().decode()
-            arr = parse(text)
-            arrs.append((fid, arr))
+        arr = parse(text)
+        arrs.append((fid, arr))
 
     def reg(alst):
         '''Regularize list of N 2D arrays of shape (many, 10) to 3D array of
         shape (N,10,max(many))
         '''
         nfids = len(alst)
+        if nfids == 0:
+            raise ValueError(f'given empty list in fzip2arrs with {len(arrs)}')
         nsamps = max([a.shape[0] for a in alst])
         block = numpy.zeros((nfids, 10, nsamps))
         for i,a in enumerate(alst):
@@ -237,14 +234,14 @@ def arrs2pr(wct, pitch):
 
         print(f'{pl} input shape {arr.shape}')
 
-        with PdfPages(f'debug-{pl}.pdf') as pdf:
-            print(f'{pl} write debug PDF')
-            junk = arr[:, 4:, :].transpose((1,0,2)).reshape(12*6,-1)
-            plt.imshow(junk, aspect='auto',
-                       interpolation='none')
-            plt.colorbar()
-            pdf.savefig(plt.gcf())
-            plt.close();
+        # with PdfPages(f'debug-{pl}.pdf') as pdf:
+        #     print(f'{pl} write debug PDF')
+        #     junk = arr[:, 4:, :].transpose((1,0,2)).reshape(12*6,-1)
+        #     plt.imshow(junk, aspect='auto',
+        #                interpolation='none')
+        #     plt.colorbar()
+        #     pdf.savefig(plt.gcf())
+        #     plt.close();
 
         twelve, ten, nticks = arr.shape
         assert ten == 10
