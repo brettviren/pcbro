@@ -162,7 +162,7 @@ def fp2wct(arrs, rebin=20):
             lu = list(range(12))
             ld = list(range(12))
             ld.reverse()
-            for ind in [1,2,3]:
+            for ind in range(1,6):
                 print(f'Swapping collection strip {ind}')
                 curs[lu, ind, :] = curs[ld, ind, :]
 
