@@ -98,30 +98,38 @@ def fpzip2arrs(datgen):
     return dict(col=reg([a[1] for a in sorted(arrs) if a[0] > 200]),
                 ind=reg([a[1] for a in sorted(arrs) if a[0] < 200]))
     
-def fp2wct(arrs, rebin=20):
-    '''Convert dict of FP arrays to WCT equivalents
+def fp2wct(arrs, rebin=20, tshift=0, nticks=1000):
+    '''
+    Convert dict of FP arrays to WCT equivalents
 
     The "arrs" dict is as returned fpzip2arrs() into WCT equivalent.
 
     The array values in the dict are of shapes:
 
-        col: (72, 10, many)
-        ind: (48, 10, many)
+    col: (72, 10, many) ind: (48, 10, many)
 
     The ordering of the 72 or 48 paths are as-provided by FP.  They
     are assumed to be pitch-major ordered.
 
     Return dict of same keys with each array reduced in size as:
 
-        col: (12, 10, fewer)
-        ind: (12, 10, fewer)
+    col: (12, 10, fewer) ind: (12, 10, fewer)
 
     This will:
-    - scale the 10 fort.NNN values to WCT units
-    - rebin the samples (many->fewer) periods to match WCT convention (5ns to 100ns)
-    - average along strip positions for a given impact position (6x12 or 4x12 -> 12)
-    - regularize impact positions (flip 12 impact positions for collection strip>0)
 
+        - scale the 10 fort.NNN values to WCT units
+
+        - rebin the samples (many->fewer) periods to match WCT
+          convention (5ns to 100ns)
+
+        - average along strip positions for a given impact position
+          (6x12 or 4x12 -> 12)
+
+        - regularize impact positions (flip 12 impact positions for
+          collection strip>0)
+
+        - force result to be nticks long, padding or truncating the
+          *start* of the array.
     '''
     ret = dict()
 
@@ -217,9 +225,31 @@ def fp2wct(arrs, rebin=20):
         curs = numpy.concatenate((curs, numpy.zeros(shape)), axis=2)
 
         # rejoin and done
-        # print(f'txyz:{txyz.shape}, curs:{curs.shape}')
+        print(f'txyz:{txyz.shape}, curs:{curs.shape}')
         # shape: (12, 10, many)
-        ret[pl] = numpy.concatenate((txyz, curs), axis=1)
+        almost = numpy.concatenate((txyz, curs), axis=1)
+
+        # if too big clip from start
+        if almost.shape[-1] > nticks:
+            almost = almost[:,:,-nticks:]
+        # if too small, pad to back
+        elif almost.shape[-1] < nticks:
+            top = list(almost.shape)
+            top[-1] = nticks - almost.shape[-1]
+            top = numpy.zeros(top)
+            amost = numpy.concatenate((top,almost), axis=2)
+
+        # and maybe shift contents preserving nticks
+        if tshift:
+            s = list(almost.shape)
+            s[-1] = abs(tshift)
+            extra = numpy.zeros(s)
+            if tshift < 0:      # shift forward, lose late
+                almost = numpy.concatenate((extra, almost[:,:,:tshift]), axis=2)
+            else:               # shift backward, lose early
+                almost = numpy.concatenate((almost[:,:,tshift:], extra), axis=2)
+
+        ret[pl] = almost
     return ret
 
 def arrs2pr(wct, pitch):
@@ -277,6 +307,8 @@ def arrs2pr(wct, pitch):
                 pitchpos = (istrip - (5-pi)/10.0) * pitch
                 pr = PathResponse(resp, pitchpos, wirepos=0)
                 paths.append(pr)
+
+        paths.sort(key=lambda pr: pr.pitchpos)
 
         ret[pl] = paths
         print(f'{pl} make {len(paths)} paths')

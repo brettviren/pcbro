@@ -30,7 +30,7 @@ def archfile(fname):
     '''
     if fname.endswith(".zip"):
         return zipgen(fname)
-    elif fname.endswith(".tgz"):
+    elif fname.endswith(".tgz") or fname.endswith(".tar"):
         return wctgf.asgenerator(fname)
     raise ValueError(f'unsupported file: {fname}')
 
@@ -101,6 +101,8 @@ def fpstrips_wct_npz(fpnpz, wctnpz):
     numpy.savez(wctnpz, **wct)
 
 @cli.command("convert-fpstrips")
+@click.option("--tshift", default=0, type=int,
+              help="Number of ticks to shift response values")
 @click.option("--tstart", default="0",
               help="Set time start (use units eg 100*us).")
 @click.option("--origin", default="10.0*cm",
@@ -113,12 +115,12 @@ def fpstrips_wct_npz(fpnpz, wctnpz):
               help="The pitch for the new response plane")
 @click.option("--normalization", default=0.0,
               help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
-@click.option("--zero-wire-locs", default=[0.0,0.0,0.0], nargs=3, type=float,
-              help="Set location of zero wires.  def: 0 0 0")
+@click.option("--location", default="3.2*mm,3.2*mm,0*mm", 
+              help="Set location of planes")
 @click.argument("filename")
 @click.argument("output")
-def convert_fpstrips(tstart, origin, period, speed, pitch,
-                     normalization, zero_wire_locs,
+def convert_fpstrips(tshift, tstart, origin, period, speed, pitch,
+                     normalization, location,
                      filename, output):
     '''
     Convert FP field response data files to WCT format
@@ -131,6 +133,7 @@ def convert_fpstrips(tstart, origin, period, speed, pitch,
 
     # pr level
     pitch = eval(pitch, units.__dict__)
+    location = [eval(l, units.__dict__) for l in location.split(",")]
 
     import wirecell.sigproc.response.persist as per
     from wirecell.sigproc.response.schema import (
@@ -139,11 +142,11 @@ def convert_fpstrips(tstart, origin, period, speed, pitch,
     if osp.splitext(filename)[-1] in (".zip",".tar",".tgz"):
         af = archfile(filename)
         fp = fpzip2arrs(af)
-        wct = fp2wct(fp)
+        wct = fp2wct(fp, tshift=tshift)
     elif filename.endswith(".npz"):
         arrs = numpy.load(filename)
         if arrs['col'].shape[0] > 12: # FP array
-            wct = fp2wct(arrs)
+            wct = fp2wct(arrs, tshift=tshift)
         else:                   # WCT array
             wct = arrs
     else:
@@ -153,9 +156,9 @@ def convert_fpstrips(tstart, origin, period, speed, pitch,
     anti_drift_axis = (1.0, 0.0, 0.0)
 
     planes = [
-        PlaneResponse(pathresp['ind'], 0, zero_wire_locs[0], pitch),
-        PlaneResponse(pathresp['ind'], 1, zero_wire_locs[1], pitch),
-        PlaneResponse(pathresp['col'], 2, zero_wire_locs[2], pitch),
+        PlaneResponse(pathresp['ind'], 0, location[0], pitch),
+        PlaneResponse(pathresp['ind'], 1, location[1], pitch),
+        PlaneResponse(pathresp['col'], 2, location[2], pitch),
     ]
     fr = FieldResponse(planes, anti_drift_axis,
                        origin, tstart, period, speed)
@@ -169,8 +172,6 @@ def convert_fpstrips(tstart, origin, period, speed, pitch,
               help="Set nominal drift speed (give untis, eg '1.6*mm/us').")
 @click.option("-n", "--normalization", default=0.0,
               help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
-@click.option("-z", "--zero-wire-locs", default=[0.0,0.0,0.0], nargs=3, type=float,
-              help="Set location of zero wires.  def: 0 0 0")
 @click.option("-f", "--format", default="json.bz2",
               type=click.Choice(['json', 'json.gz', 'json.bz2']),
               help="Set output file format")
@@ -178,7 +179,7 @@ def convert_fpstrips(tstart, origin, period, speed, pitch,
               help="Set basename for output files")
 @click.argument("garfield-fileset")
 
-def convert_garfield(origin, speed, normalization, zero_wire_locs,
+def convert_garfield(origin, speed, normalization, 
                      format,
                      garfield_fileset, basename):
     '''

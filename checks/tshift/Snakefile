@@ -1,0 +1,148 @@
+#!/usr/bin/env snakemake
+
+# There is some time shift between simulated raw and sim+sigproc.
+# Here we illustrate it and demonstrate a solution.
+
+import json
+config = json.load(open("tshift.json"))
+datadir = config['datadir']
+cfgdir = config['cfgdir']
+wctcfg = config['wctcfg']
+
+# Describe the types of responses
+FPRESPS = ["dv-2000v-h2mm0", "dv-2000v-h2mm5"]
+TSHIFTS = ["0","30","60", "210"]
+SFTRESPS = expand("{fpresp}-{tshift}", fpresp=FPRESPS, tshift=TSHIFTS)
+MANRESPS = ["pcbro-response-avg"]
+ALLRESPS = SFTRESPS + MANRESPS
+
+# Data tiers: "sim" is simulation to raw ADC and "ssp" is sim+sigproc
+TIERS = ["sim", "ssp"]
+
+# We only make one trigger, but future proof a little
+TRIGGERS=[0]
+
+## 
+resp_file_p = f"{datadir}/tshift/resp/{{resp}}.json.bz2"
+
+# resp_plot_p = f"{datadir}/tshift/plots/{{resp}}.png"
+# sim_file_p  = f"{datadir}/tshift/sim/{{resp}}.npz"
+# ssp_file_p  = f"{datadir}/tshift/ssp/{{resp}}.npz"
+# tier_file_p = f"{datadir}/tshift/{{tier}}/{{resp}}.npz"
+# tier_plot_p = f"{datadir}/tshift/plots/{{tier}}-{{trigger}}-{{resp}}.png"
+
+
+# Generate WCT resp files from FP data to file pattern which matches
+# resp_file_p.
+rule fp2wct:
+    input:
+        f"{datadir}/fp/{{fpresp}}-fixed.tgz"
+    output:
+        f"{datadir}/tshift/resp/{{fpresp}}-{{tshift}}.json.bz2"
+    shell: """
+    wirecell-pcbro convert-fpstrips \
+      --tshift {wildcards.tshift} {input} {output}
+    """
+
+# Make standard WCT field response plots
+rule fieldplots:
+    input:
+        resp_file_p
+    output:
+        f"{datadir}/tshift/plots/{{resp}}.png"
+    shell:
+        "wirecell-sigproc plot-response --region 0 --trange 0,100 --reflect {input} {output}"
+
+rule all_fieldplots:
+    input:
+        expand(rules.fieldplots.output, resp=MANRESPS),
+        expand(rules.fieldplots.output, fpresp=FPRESPS, tshift=TSHIFTS,
+               resp=SFTRESPS)
+
+cfg_file_p = f"{datadir}/tshift/cfg/{{resp}}/cli-{{tier}}-npz.json"
+rule wctcfg:
+    input:
+        respfile=resp_file_p,
+        config=f"{cfgdir}/cli-{{tier}}-npz.jsonnet"
+    output:
+        cfg_file_p
+    params:
+        tierfile = f"{datadir}/tshift/{{tier}}/{{resp}}.npz"
+    shell:
+        """
+        jsonnet -J {wctcfg} -J {cfgdir} \
+          -A resp={input.respfile} -A outfile={params.tierfile} \
+          -o {output} {input.config}
+        """
+rule all_wctcfg:
+    input:
+        expand(cfg_file_p, resp=ALLRESPS, tier=TIERS)
+
+rule runwct:
+    input:
+        resp=resp_file_p,
+        config=rules.wctcfg.output
+    output:
+        f"{datadir}/tshift/{{tier}}/{{resp}}.npz"
+    params:
+        outdir = os.path.dirname(f"{datadir}/tshift/{{tier}}/{{resp}}.npz")
+    shell:
+        """
+        mkdir -p {params.outdir};
+        wire-cell -A resp={input.resp} -A outfile={output} \
+          -c {input.config}
+        """
+
+rule all_runwct:
+    input:
+        expand(rules.runwct.output, resp=ALLRESPS, tier=TIERS)
+        
+tier_plot_p = f"{datadir}/tshift/plots/{{tier}}/{{trigger}}/{{resp}}.png"
+rule evdplots_sim:
+    input:
+        rules.runwct.output
+    output:
+        tier_plot_p
+    wildcard_constraints:
+        tier=r"\bsim\b"
+    shell:
+        "wirecell-pcbro evd2d -t {wildcards.trigger} \
+        --channels '0:64,64:128' \
+        --title='Sim raw trigger {wildcards.trigger} ({wildcards.resp})' \
+        --color-unit='ADC from baseline' \
+        --color-map=seismic \
+        --color-range='-300,0,300' \
+        --baseline-subtract=median \
+        -T orig0 \
+        -o {output} {input}"
+
+rule evdplots_ssp:
+    input:
+        rules.runwct.output
+    output:
+        tier_plot_p
+    wildcard_constraints:
+        tier=r"\bssp\b"
+    shell:
+        "wirecell-pcbro evd2d -t {wildcards.trigger} --channels '0:64,64:128' \
+        --title='Sim sigproc trigger {wildcards.trigger} ({wildcards.resp})' \
+        --color-map=cubehelix \
+        --color-range='0,2500,20000' \
+        --mask-min=0 --ticks='0:800' \
+        -T gauss0 \
+        -o {output} {input}"
+
+rule all_evdplots:
+    input:
+        expand(tier_plot_p, resp=ALLRESPS, tier=["sim","ssp"],
+               trigger=TRIGGERS)
+
+
+
+rule all:
+    input:
+        rules.all_fieldplots.input,
+        rules.all_wctcfg.input,
+        rules.all_runwct.input,
+        rules.all_evdplots.input
+
