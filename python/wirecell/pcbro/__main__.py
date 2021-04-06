@@ -75,6 +75,33 @@ def fpstrips_fp_npz(infile, npzname):
     arrs = fpzip2arrs(af)
     numpy.savez(npzname, **arrs)
 
+@cli.command("fpstrips-trio-npz")
+@click.option("--ind1", type=str, help="induction1 tar file")
+@click.option("--ind2", type=str, help="induction2 tar file")
+@click.option("--col", type=str, help="collection tar file")
+@click.argument("npzname")
+def fpstrips_trio_npz(ind1, ind2, col, npzname):
+    '''Rewrite zips/tars of fort.2NN files to FP-style NPZ.
+
+    No processing beyond reformating is done.
+
+    Each induction1/2 and collection given as a separate tar/zip.
+
+    Each array is shape (npaths, ncolumns, nsamples)
+
+    ncolumns are FP's 10 data columns
+
+    '''
+    from .fpstrips import fpzip2arrs
+
+    out = dict()
+    keyed = dict(ind1=ind1, ind2=ind2, col=col)
+    for key,fname in keyed.items():
+        af = archfile(fname)
+        arrs = fpzip2arrs(af)
+        out[key] = arrs['col']
+    numpy.savez(npzname, **out)
+
 
 @cli.command("fpstrips-draw-fp")
 @click.argument("npzname")
@@ -143,14 +170,17 @@ def convert_fpstrips(tshift, nticks,
         FieldResponse, PlaneResponse)
     from .fpstrips import fpzip2arrs, fp2wct, arrs2pr
     if osp.splitext(filename)[-1] in (".zip",".tar",".tgz"):
+        print("Got FP archive")
         af = archfile(filename)
         fp = fpzip2arrs(af)
         wct = fp2wct(fp, tshift=tshift, nticks=nticks)
     elif filename.endswith(".npz"):
         arrs = numpy.load(filename)
         if arrs['col'].shape[0] > 12: # FP array
+            print("Got FP NPZ")
             wct = fp2wct(arrs, tshift=tshift, nticks=nticks)
         else:                   # WCT array
+            print("Got WCT NPZ")
             wct = arrs
     else:
         print(f"Unknown data file: {filename}")
@@ -158,11 +188,20 @@ def convert_fpstrips(tshift, nticks,
 
     anti_drift_axis = (1.0, 0.0, 0.0)
 
-    planes = [
-        PlaneResponse(pathresp['ind'], 0, location[0], pitch),
-        PlaneResponse(pathresp['ind'], 1, location[1], pitch),
-        PlaneResponse(pathresp['col'], 2, location[2], pitch),
-    ]
+    if "ind1" in pathresp:
+        print("Got 3 views")
+        planes = [
+            PlaneResponse(pathresp['ind1'], 0, location[0], pitch),
+            PlaneResponse(pathresp['ind2'], 1, location[1], pitch),
+            PlaneResponse(pathresp['col'], 2, location[2], pitch),
+        ]
+    else:
+        print("Got 2 views")
+        planes = [
+            PlaneResponse(pathresp['ind'], 0, location[0], pitch),
+            PlaneResponse(pathresp['ind'], 1, location[1], pitch),
+            PlaneResponse(pathresp['col'], 2, location[2], pitch),
+        ]
     fr = FieldResponse(planes, anti_drift_axis,
                        origin, tstart, period, speed)
     per.dump(output, fr)

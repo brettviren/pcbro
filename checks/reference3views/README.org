@@ -1,0 +1,78 @@
+* FP's notes
+
+#+begin_quote
+
+signals of the 3-view reference case:
+
+- equilateral hole pattern
+- hole spacing ~2.85mm
+- 2.3 mm hole diameter
+- strips oriented at 120 deg
+- collection strip pitch ~ 4.9 mm
+- inductions strip pitch: ~7.35 mm
+- distance between the two PCB’s: 10 mm
+- PCB thichness: 3.2 mm
+
+dropbox link:
+https://www.dropbox.com/sh/tfbgqrebc94ia51/AADNer78R-ff3MfbR5RPpRLoa?dl=0
+
+Induction 1 is the first layer crossed by the electrons, Induction 2 is the second.
+The format is the same as for the 50 liter 2view case.
+
+#+end_quote
+
+[[file:layout.png]]
+
+
+* Notes
+
+Each plane has same file ID numbers are ~fort.2xx~.  To process, tar up
+each sub-dir separately 
+
+#+begin_example
+cd Reference3view
+for n in collection induction1 induction2
+do
+  tar -cf $n.tar $n
+done
+
+wirecell-pcbro fpstrips-trio-npz \
+  --col collection.tar \
+  --ind1 induction1.tar \
+  --ind2 induction2.tar \
+  reference3view.npz
+
+wirecell-pcbro fpstrips-draw-fp \
+    reference3view.npz \
+    reference3view.pdf
+#+end_example
+
+The ind1 gives:
+
+[[file:initial-look-ind1.png]]
+
+Looks like the induction 1/2 match collection and need a "flip".
+Update ~fpstrips.fp2wct~ to do the flip on also ~"ind1"~ and ~"ind2"~
+arrays.
+
+#+begin_example
+wirecell-pcbro convert-fpstrips \
+  reference3view.npz \
+  reference3view.json.bz2
+wirecell-sigproc plot-response \
+  --region 0 --trange 0,125 --reflect \
+  reference3view.json.bz2 \
+  reference3view.png
+#+end_example
+
+Gives:
+
+#+ATTR_ORG: :width 600
+[[file:reference3view.png]]
+
+And zoom in
+
+
+#+ATTR_ORG: :width 600
+[[file:reference3view-zoom.png]]
+

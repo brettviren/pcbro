@@ -15,7 +15,8 @@ function(anode, resp) g.pnode({
         ftoffset: 0.0, // default 0.0
         ctoffset: 1.0*wc.microsecond, // default -8.0
         per_chan_resp: "",
-        fft_flag: 1,  // 1 is faster but higher memory, 0 is slightly slower but lower memory
+        // WARNING: setting this to 1 will give you GARBAGE
+        fft_flag: 0,  // 1 is faster but higher memory, 0 is slightly slower but lower memory
         elecresponse : wc.tn(resp.elec_resp),
         postgain: 1,  // default 1.2
         ADC_mV: 4095 / (1400.0 * wc.mV),  // default 4096/2000

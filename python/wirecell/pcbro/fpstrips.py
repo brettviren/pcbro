@@ -86,7 +86,8 @@ def fpzip2arrs(datgen):
         '''
         nfids = len(alst)
         if nfids == 0:
-            raise ValueError(f'given empty list in fzip2arrs with {len(arrs)}')
+            print(f'warning: given empty list in fzip2arrs with {len(arrs)}')
+            return
         nsamps = max([a.shape[0] for a in alst])
         block = numpy.zeros((nfids, 10, nsamps))
         for i,a in enumerate(alst):
@@ -95,8 +96,14 @@ def fpzip2arrs(datgen):
         return block
         
     # shape: (12*6 or 12*4, 10, many)
-    return dict(col=reg([a[1] for a in sorted(arrs) if a[0] > 200]),
-                ind=reg([a[1] for a in sorted(arrs) if a[0] < 200]))
+
+    col=reg([a[1] for a in sorted(arrs) if a[0] > 200]);
+    ind=reg([a[1] for a in sorted(arrs) if a[0] < 200]);
+    ret = dict()
+    if col is not None: ret['col'] = col
+    if ind is not None: ret['ind'] = ind
+    return ret
+
     
 def fp2wct(arrs, rebin=20, tshift=0, nticks=None):
     '''
@@ -130,6 +137,9 @@ def fp2wct(arrs, rebin=20, tshift=0, nticks=None):
 
         - force result to be nticks long, padding or truncating the
           *start* of the array.
+
+        - flip induction strips if named "ind1" or "ind2", assuming
+          they come from 3view.
     '''
     ret = dict()
 
@@ -166,13 +176,15 @@ def fp2wct(arrs, rebin=20, tshift=0, nticks=None):
         # for collection strips > 0.  If we had to keep distinct the
         # positions along the strip we'd need a second flip in that
         # direction for strip 2 but the reshape+mean negates that
-        if pl == 'col':
+        if pl in ('col','ind1','ind2'):
             lu = list(range(12))
             ld = list(range(12))
             ld.reverse()
             for ind in range(1,6):
                 print(f'Swapping collection strip {ind}')
                 curs[lu, ind, :] = curs[ld, ind, :]
+
+
 
         # Zero-pad currents out to exact multiple of rebin=20 samples
         # (nimps=12, nstrips=6, samples=mult-of-20)

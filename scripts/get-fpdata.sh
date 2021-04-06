@@ -18,8 +18,11 @@ fi
 if [ ! -s dv-2000v.zip ] ; then
     wget -O dv-2000v.zip 'https://www.dropbox.com/sh/dh5ijin1bp0q00o/AABg8OC3p3WzZwJaarrmRFura?dl=0'
 fi
+if [ ! -s reference3views.zip ] ; then
+    wget -O reference3views.zip 'https://www.dropbox.com/sh/tfbgqrebc94ia51/AADNer78R-ff3MfbR5RPpRLoa?dl=0'
+fi
 
-for one in dv-2000v dv-2000v-h2mm0 dv-2000v-h2mm5
+for one in dv-2000v dv-2000v-h2mm0 dv-2000v-h2mm5 reference3views
 do
     if [ -d "$one" ] ; then
         echo "already unpacked $one"
@@ -53,4 +56,21 @@ do
         continue
     fi
     tar -czf "${one}-fixed.tgz" "$one"
+done
+
+for one in reference3views
+do
+    # the zip holds some really messed up permissions
+    chmod -R 755 $one
+    chmod 444 $one/*/*/fort.*
+    cd $one/Reference3views
+    for pln in collection induction1 induction2
+    do
+        if [ -f "${pln}.tar" ] ; then
+            echo "$pln.tar exists"
+            continue
+        fi
+        tar -cf "${pln}.tar" $pln
+    done
+    cd -
 done

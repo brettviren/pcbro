@@ -21,10 +21,10 @@ function(outfile,
             time: 0*wc.ms,
             charge: -5000,
             ray: {
-                tail: wc.point(t*5+10, -(2*t), -(2*t +2), wc.cm),
-                head: wc.point(t*5   , +(2*t), +(2*t +2), wc.cm),
+                tail: wc.point(t*5+10, -(2*t), -(2*t + 0.1), wc.cm),
+                head: wc.point(t*5   , +(2*t), +(2*t + 0.1), wc.cm),
             }
-        } for t in [0,1,2,3,4,5,6,7]],
+        } for t in [1,2,3,4,5,6,7]],
 
     local depos = g.pnode({
         type: 'TrackDepos',

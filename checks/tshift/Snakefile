@@ -116,6 +116,7 @@ rule evdplots_sim:
         --color-unit='ADC from baseline' \
         --color-map=seismic \
         --color-range='-300,0,300' \
+        --ticks='0:1000' \
         --baseline-subtract=median \
         -T orig0 \
         -o {output} {input}"
@@ -132,7 +133,8 @@ rule evdplots_ssp:
         --title='Sim sigproc trigger {wildcards.trigger} ({wildcards.resp})' \
         --color-map=cubehelix \
         --color-range='0,2500,20000' \
-        --mask-min=0 --ticks='0:800' \
+        --mask-min=0 \
+        --ticks='0:1000' \
         -T gauss0 \
         -o {output} {input}"
 
