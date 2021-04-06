@@ -1,0 +1,40 @@
+#+title: look at time shifts
+
+* auto
+
+#+begin_example
+  $ snakemake -jall -p all
+#+end_example
+
+* WCT sim problems
+
+** COMMENT Barf on big response
+
+FP responses have 1196 0.1us ticks.  PIR crashes on more than 1000.
+
+#+begin_example
+  $ wirecell-pcbro convert-fpstrips ~/work/pcbro/fp/dv-2000v-h2mm5-fixed.tar junk.json.bz2
+  $ wirecell-sigproc plot-response --region 0 --trange 0,120 --reflect junk.json.bz2 junk.png
+  $ wire-cell -lstdout -Ldebug -A resp=junk.json.bz2 -A outfile=junk.npz -c /home/bv/dev/pcbro/cfg/cli-ssp-npz.jsonnet
+  [13:48:42.661] I [  wct   ] loading compressed json file: /home/bv/dev/pcbro/checks/tshift/junk.json.bz2
+  [13:48:43.062] D [  geom  ] PIR: short response ColdElecResponse has different number of samples (771) than expected (200)
+  [13:48:43.063] D [  geom  ] PIR: long response RCResponse has different number of samples (771) than expected (800)
+  [13:48:43.066] D [  geom  ] PIR: long response RCResponse has different number of samples (771) than expected (800)
+  [13:48:43.069] D [  geom  ] PIR: ipath:0, wirenum:-5 pitchpos:-27.5
+  [13:48:43.069] E [  geom  ] PIR: out of bounds field response bin=200, ntbins=200, time=100.05 us, tick=0.5 us
+  ../gen/src/PlaneImpactResponse.cxx(213): Throw in function void WireCell::Gen::PlaneImpactResponse::build_responses()
+  Dynamic exception type: boost::exception_detail::clone_impl<WireCell::ValueError>
+  [WireCell::tag_errmsg*] = Response config not consistent
+#+end_example
+
+
+** FFT echos
+
+FP response functions end dead right at the end of the 1196 ticks.
+After snipping off the leading ticks to get 1000, WCT sim suffers,
+apparently, from FFT cycling due to too-small domain.  Shifting FP
+response to about 60 ticks earlier avoids this.  But, this shouldn't
+be needed.
+
+
+** Preshadow function of time shift

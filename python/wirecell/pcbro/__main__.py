@@ -103,6 +103,8 @@ def fpstrips_wct_npz(fpnpz, wctnpz):
 @cli.command("convert-fpstrips")
 @click.option("--tshift", default=0, type=int,
               help="Number of ticks to shift response values")
+@click.option("--nticks", default=None, type=int,
+              help="Limit total number of ticks in the response functions")
 @click.option("--tstart", default="0",
               help="Set time start (use units eg 100*us).")
 @click.option("--origin", default="10.0*cm",
@@ -119,7 +121,8 @@ def fpstrips_wct_npz(fpnpz, wctnpz):
               help="Set location of planes")
 @click.argument("filename")
 @click.argument("output")
-def convert_fpstrips(tshift, tstart, origin, period, speed, pitch,
+def convert_fpstrips(tshift, nticks,
+                     tstart, origin, period, speed, pitch,
                      normalization, location,
                      filename, output):
     '''
@@ -142,11 +145,11 @@ def convert_fpstrips(tshift, tstart, origin, period, speed, pitch,
     if osp.splitext(filename)[-1] in (".zip",".tar",".tgz"):
         af = archfile(filename)
         fp = fpzip2arrs(af)
-        wct = fp2wct(fp, tshift=tshift)
+        wct = fp2wct(fp, tshift=tshift, nticks=nticks)
     elif filename.endswith(".npz"):
         arrs = numpy.load(filename)
         if arrs['col'].shape[0] > 12: # FP array
-            wct = fp2wct(arrs, tshift=tshift)
+            wct = fp2wct(arrs, tshift=tshift, nticks=nticks)
         else:                   # WCT array
             wct = arrs
     else:

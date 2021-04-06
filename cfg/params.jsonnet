@@ -28,6 +28,9 @@ base {
         fixed: true,
     },
 
+    // This 'sys' thing is something Hanyu added. 
+    // See old wire-cell-cfg commit 5f2cda44.
+    // I guess it was to add RCRC
     sys_status: false,
     sys_resp: {
         // I don't know what this does.

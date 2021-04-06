@@ -39,8 +39,11 @@ rule fp2wct:
         f"{datadir}/fp/{{fpresp}}-fixed.tgz"
     output:
         f"{datadir}/tshift/resp/{{fpresp}}-{{tshift}}.json.bz2"
+    params:
+        nticks = 0
     shell: """
     wirecell-pcbro convert-fpstrips \
+      --nticks {params.nticks} \
       --tshift {wildcards.tshift} {input} {output}
     """
 
@@ -49,9 +52,9 @@ rule fieldplots:
     input:
         resp_file_p
     output:
-        f"{datadir}/tshift/plots/{{resp}}.png"
+        f"{datadir}/tshift/plots/fields/{{resp}}.png"
     shell:
-        "wirecell-sigproc plot-response --region 0 --trange 0,100 --reflect {input} {output}"
+        "wirecell-sigproc plot-response --region 0 --trange 0,120 --reflect {input} {output}"
 
 rule all_fieldplots:
     input:
@@ -60,6 +63,7 @@ rule all_fieldplots:
                resp=SFTRESPS)
 
 cfg_file_p = f"{datadir}/tshift/cfg/{{resp}}/cli-{{tier}}-npz.json"
+tierfile_p = f"{datadir}/tshift/{{tier}}/{{resp}}.npz"
 rule wctcfg:
     input:
         respfile=resp_file_p,
@@ -67,11 +71,12 @@ rule wctcfg:
     output:
         cfg_file_p
     params:
-        tierfile = f"{datadir}/tshift/{{tier}}/{{resp}}.npz"
+        tierfile = tierfile_p
     shell:
         """
         jsonnet -J {wctcfg} -J {cfgdir} \
-          -A resp={input.respfile} -A outfile={params.tierfile} \
+          -A resps_file={input.respfile} \
+          -A outfile={params.tierfile} \
           -o {output} {input.config}
         """
 rule all_wctcfg:
@@ -83,14 +88,13 @@ rule runwct:
         resp=resp_file_p,
         config=rules.wctcfg.output
     output:
-        f"{datadir}/tshift/{{tier}}/{{resp}}.npz"
+        tierfile_p
     params:
-        outdir = os.path.dirname(f"{datadir}/tshift/{{tier}}/{{resp}}.npz")
+        outdir = os.path.dirname(tierfile_p)
     shell:
         """
         mkdir -p {params.outdir};
-        wire-cell -A resp={input.resp} -A outfile={output} \
-          -c {input.config}
+        wire-cell -c {input.config}
         """
 
 rule all_runwct:

@@ -98,7 +98,7 @@ def fpzip2arrs(datgen):
     return dict(col=reg([a[1] for a in sorted(arrs) if a[0] > 200]),
                 ind=reg([a[1] for a in sorted(arrs) if a[0] < 200]))
     
-def fp2wct(arrs, rebin=20, tshift=0, nticks=1000):
+def fp2wct(arrs, rebin=20, tshift=0, nticks=None):
     '''
     Convert dict of FP arrays to WCT equivalents
 
@@ -229,15 +229,16 @@ def fp2wct(arrs, rebin=20, tshift=0, nticks=1000):
         # shape: (12, 10, many)
         almost = numpy.concatenate((txyz, curs), axis=1)
 
-        # if too big clip from start
-        if almost.shape[-1] > nticks:
-            almost = almost[:,:,-nticks:]
-        # if too small, pad to back
-        elif almost.shape[-1] < nticks:
-            top = list(almost.shape)
-            top[-1] = nticks - almost.shape[-1]
-            top = numpy.zeros(top)
-            amost = numpy.concatenate((top,almost), axis=2)
+        if nticks:
+            # if too big clip from start
+            if almost.shape[-1] > nticks:
+                almost = almost[:,:,-nticks:]
+            # if too small, pad to back
+            elif almost.shape[-1] < nticks:
+                top = list(almost.shape)
+                top[-1] = nticks - almost.shape[-1]
+                top = numpy.zeros(top)
+                almost = numpy.concatenate((top,almost), axis=2)
 
         # and maybe shift contents preserving nticks
         if tshift:

@@ -54,6 +54,29 @@ local tools = tools_maker(params);
         name: name,
     }, nin=1, nout=0),
 
+    //
+    // Redo this from pgrapher/common/tools.jsonnet in order to fix "padding"
+    //
+    local sim_response_binning = {
+        tick: params.daq.tick,
+        nticks: params.sim.ductor.nticks, // MUST match ductor
+    },
+    mypirs :: std.mapWithIndex(function (n, fr) [
+        {
+            type: "PlaneImpactResponse",
+            name : "MyPIR%splane%d" % [fr.name, plane],
+            data : sim_response_binning {
+                plane: plane,
+                field_response: wc.tn(fr),
+                short_responses: [wc.tn(tools.elec_resp)],
+                // this needs to be big enough for convolving FR*CE
+                overall_short_padding: 2000*wc.us,
+                long_responses: [wc.tn(tools.rc_resp)],
+                // this needs to be big enough to convolve RC
+                long_padding: 1.5*wc.ms,
+            },
+            uses: [fr, tools.elec_resp, tools.rc_resp],
+        } for plane in [0,1,2]], tools.fields),
 
     // Produce params and tools objects that describe the pcbro detector.
     detector(resp = self.response_file):: {
@@ -79,7 +102,7 @@ local tools = tools_maker(params);
         local sim = sim_maker(detector.params, detector.tools),
         local drifter = sim.drifter,
         local bagger = sim.make_bagger(),
-        local ductor = sim.make_depotransform("ductor", detector.anode, detector.tools.pirs[0]),
+        local ductor = sim.make_depotransform("ductor", detector.anode, detector.tools.mypirs[0]),
         local reframer = g.pnode({
             type: 'Reframer',
             name: 'reframer',
