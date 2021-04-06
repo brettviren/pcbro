@@ -140,8 +140,8 @@ def fpstrips_wct_npz(fpnpz, wctnpz):
               help="Set sample period time (use units eg 0.1*us).")
 @click.option("--speed", default="1.6*mm/us",
               help="Set nominal drift speed (give untis, eg '1.6*mm/us').")
-@click.option("--pitch", type=str, default="5*mm",
-              help="The pitch for the new response plane")
+@click.option("--pitch", type=str, default="5*mm,5*mm,5*mm",
+              help="The pitches for the new response planes")
 @click.option("--normalization", default=0.0,
               help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
 @click.option("--location", default="3.2*mm,3.2*mm,0*mm", 
@@ -162,7 +162,11 @@ def convert_fpstrips(tshift, nticks,
     speed = eval(speed, units.__dict__)
 
     # pr level
-    pitch = eval(pitch, units.__dict__)
+    if "," in pitch:
+        pitch = [eval(l, units.__dict__) for l in pitch.split(",")]
+    else:
+        pitch = [eval(pitch, units.__dict__)]*3
+    print(f"Got pitches: {pitch}")
     location = [eval(l, units.__dict__) for l in location.split(",")]
 
     import wirecell.sigproc.response.persist as per
@@ -184,23 +188,29 @@ def convert_fpstrips(tshift, nticks,
             wct = arrs
     else:
         print(f"Unknown data file: {filename}")
-    pathresp = arrs2pr(wct, pitch)
 
     anti_drift_axis = (1.0, 0.0, 0.0)
 
+    if "ind1" in arrs:
+        pd = dict(ind1=pitch[0],ind2=pitch[1],col=pitch[2])
+        print(f"Got 3 views with pitches {pd}")
+    else:
+        pd = dict(ind=pitch[0],col=pitch[1])
+        print(f"Got 2 views with pitches {pd}")
+
+    pathresp = arrs2pr(wct, pd)
+
     if "ind1" in pathresp:
-        print("Got 3 views")
         planes = [
-            PlaneResponse(pathresp['ind1'], 0, location[0], pitch),
-            PlaneResponse(pathresp['ind2'], 1, location[1], pitch),
-            PlaneResponse(pathresp['col'], 2, location[2], pitch),
+            PlaneResponse(pathresp['ind1'], 0, location[0], pitch[0]),
+            PlaneResponse(pathresp['ind2'], 1, location[1], pitch[1]),
+            PlaneResponse(pathresp['col'], 2, location[2], pitch[2]),
         ]
     else:
-        print("Got 2 views")
         planes = [
-            PlaneResponse(pathresp['ind'], 0, location[0], pitch),
-            PlaneResponse(pathresp['ind'], 1, location[1], pitch),
-            PlaneResponse(pathresp['col'], 2, location[2], pitch),
+            PlaneResponse(pathresp['ind'], 0, location[0], pitch[0]),
+            PlaneResponse(pathresp['ind'], 1, location[1], pitch[0]),
+            PlaneResponse(pathresp['col'], 2, location[2], pitch[1]),
         ]
     fr = FieldResponse(planes, anti_drift_axis,
                        origin, tstart, period, speed)

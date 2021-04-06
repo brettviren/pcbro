@@ -51,12 +51,15 @@ The ind1 gives:
 
 [[file:initial-look-ind1.png]]
 
-Looks like the induction 1/2 match collection and need a "flip".
-Update ~fpstrips.fp2wct~ to do the flip on also ~"ind1"~ and ~"ind2"~
-arrays.
+Looks like the induction 1 and 2 match this and past collection planes
+and need a "flip".  Update ~fpstrips.fp2wct~ to do the flip on also
+~"ind1"~ and ~"ind2"~ arrays.
+
+And, also need to add support for different pitches.
 
 #+begin_example
 wirecell-pcbro convert-fpstrips \
+  --pitch '7.35*mm,7.35*mm,4.9*mm' \
   reference3view.npz \
   reference3view.json.bz2
 wirecell-sigproc plot-response \
@@ -70,8 +73,7 @@ Gives:
 #+ATTR_ORG: :width 600
 [[file:reference3view.png]]
 
-And zoom in
-
+And zoom in:
 
 #+ATTR_ORG: :width 600
 [[file:reference3view-zoom.png]]

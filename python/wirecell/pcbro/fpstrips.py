@@ -265,7 +265,7 @@ def fp2wct(arrs, rebin=20, tshift=0, nticks=None):
         ret[pl] = almost
     return ret
 
-def arrs2pr(wct, pitch):
+def arrs2pr(wct, pitchdict):
     '''Return dict of PlathResponse lists derived from from "wct" type array as from fp2wct()
 
     Each array is assumed to be shaped as (12, 10, nsamples).
@@ -274,6 +274,7 @@ def arrs2pr(wct, pitch):
 
     ret = dict()
     for pl, arr in wct.items():
+        pit = pitchdict[pl]
 
         print(f'{pl} input shape {arr.shape}')
 
@@ -303,7 +304,7 @@ def arrs2pr(wct, pitch):
                 # column in FP table
                 col = 4 + istrip
                 resp = pia[col]
-                pitchpos = (-istrip - (pi-6)/10.0)*pitch
+                pitchpos = (-istrip - (pi-6)/10.0)*pit
                 pr = PathResponse(resp, pitchpos, wirepos=0)
                 paths.append(pr)
                 
@@ -317,7 +318,7 @@ def arrs2pr(wct, pitch):
             for istrip in range(1,6):
                 col = 4 + istrip
                 resp = pia[col]
-                pitchpos = (istrip - (5-pi)/10.0) * pitch
+                pitchpos = (istrip - (5-pi)/10.0) * pit
                 pr = PathResponse(resp, pitchpos, wirepos=0)
                 paths.append(pr)
 
