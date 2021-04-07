@@ -1,4 +1,4 @@
-local pcbro = import "pcbro.jsonnet";
+local pcbront = import "pcbront.jsonnet";
 local g = import "pgraph.jsonnet";
 
 // Return a wire-cell CLI sequence.
@@ -7,30 +7,24 @@ local g = import "pgraph.jsonnet";
 //   --tla-str infile="file.bin" \
 //   --tla-str outfile="file.npz" \
 //   -c cli-bin2npz.jsonent [...]
-function(infile, outfile, tag="", nplanes=3, resp=pcbro.response_file) {
-
-    local det = pcbro.detector(resp),
+function(infile, outfile, tag="", nplanes=3,
+         resps_file=pcbront.defaults.files.response,
+         wires_file=pcbront.defaults.files.wires)
+{
+    local vol = pcbront.vol(),
+    local anode = pcbront.anode(wires_file, vol),
+    local resp = pcbront.resp(respf=resps_file),
 
     local graph = g.pipeline([
-        pcbro.rawsource("input", infile, tag, nplanes),
-        pcbro.tentoframe("tensor-to-frame", tensors=[pcbro.tensor(tag)]),
-        pcbro.sigproc(det),
-        pcbro.npzsink("output", outfile, false, tags=["gauss0", "wiener0", "threshold0"]),
-        pcbro.dumpframes("dumpframes")]),
+        pcbront.io.rawsource("input", infile, tag, nplanes),
+        pcbront.io.tentoframe("tensor-to-frame",
+                              tensors=[pcbront.io.tensor(tag)]),
 
-    local app = {
-        type: 'Pgrapher',
-        data: {
-            edges: g.edges(graph)
-        },
-    },
-    local cmdline = {
-        type: "wire-cell",
-        data: {
-            plugins: pcbro.plugins + ["WireCellApps", "WireCellPgraph"],
-            apps: ["Pgrapher"],
-        }
-    },
-    seq: [cmdline] + g.uses(graph) + [app],
+        pcbront.sigproc(anode, resp),
+
+        pcbront.io.npzsink("output", outfile, false, tags=["gauss0", "wiener0", "threshold0"]),
+        pcbront.io.dumpframes("dumpframes")]),
+
+    seq: pcbront.appcfg(graph)
 }.seq
 

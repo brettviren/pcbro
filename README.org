@@ -25,5 +25,5 @@ More details are in
 - [[file:docs/roadmap.org][Roadmap]]
 - [[file:docs/using.org][Using]]
 - [[file:docs/fpstrips.org][A 2D/3D field]]
-        
+- [[file:docs/smauto.org][Automation]]
 

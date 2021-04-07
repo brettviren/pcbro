@@ -1,0 +1,44 @@
+#+title: Automating pcbro
+
+* Snakemake
+
+PCBRo provides a main ~Snakefile~ to automate various main tasks as well
+as some others for specific checks.
+
+** Main tasks
+
+The main tasks include:
+
+- converting the variety of FP responses to a common Numpy ~.npz~ based format
+- producing an intermediate ~.npz~ file with the data in WCT form
+- producing fields in canonical WCT format (~.json.bz2~)
+- running just decode raw ~.bin~ data
+- running WCT sim and raw/sim + sigproc using these fields.
+- making various diagnostic plots after various steps above.
+
+** Setup
+
+The main ~Snakefile~ assumes a "working directory" different than the
+source directory.  The working directory must hold the ~.bin~ files and
+FP's "raw" FP data files in tar form.  The latter can be produced with
+~scripts/get-fpdata.sh~.  Also to be supplied is a file with a list of
+timestamps from the collection of ~.bin~ files.
+
+** Running
+
+The main ~snakemake~ command is something like:
+
+#+begin_example
+sdir=/path/to/stamps
+ddir=/path/to/data
+wdir=/path/to/work
+snakemake -jall \
+    --config \
+      stamps="$sdir/rawdata-2020-05-26.stamps" \
+      binpat="$ddir/Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_{timestamp}.bin" \
+    --directory $wdir <target>
+#+end_example
+
+The ~scripts/snakeit.sh~ can be adapted or checked for an example.
+
+The ~<target>~ is one mentioned in the ~Snakefile~ eg ~all~.

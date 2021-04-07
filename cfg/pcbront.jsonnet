@@ -1,9 +1,5 @@
 // WCT configuration support for PCB readout components
-local wc = import "wirecell.jsonnet";
-local g = import 'pgraph.jsonnet';
-
 {
-    plugins: ["WireCellPcbro", "WireCellSio", "WireCellAux", "WireCellGen", "WireCellSigProc"],
 
     defaults : import "defaults.jsonnet",
 
@@ -28,4 +24,6 @@ local g = import 'pgraph.jsonnet';
     // want.
     sim :: import "sim.jsonnet",
 
+    // function taking graph returning app cfg sequence
+    appcfg :: import "mainseq.jsonnet",
 }

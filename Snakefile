@@ -1,47 +1,86 @@
 #!/usr/bin/env snakemake
 
+## This converts FP response data to WCT form (.json.bz2), runs WCT
+## sim and sigproc jobs on sim and data using the FR and it makes
+## various diagnostic plots.  See scripts/get-fpdata.sh for how to
+## properly populate input tar files holding FP responses.  For raw
+## data processing you will need to provide .bin files according to
+## rawdata_bin_p below and provide a list of timestamps via the
+## "stamps" config parameter.
 
-# These names come from FP's dropbox folder names, but lower cased.
-# Downloading their zip files is not done here as it is error prone
-# due to Dropbox unreliability.  Provide them manually.
-FPSAMPLES = ["dv-2000v", "dv-2000v-h2mm0", "dv-2000v-h2mm5"]
+# use this like:
+# snakemake -jall \
+#   --config stamps=$(pwd)/scripts/rawdata-2020-05-26.stamps \
+#   --config binpat="Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_{timestamp}.bin" \
+#   --directory /home/bv/work/pcbro
+# see "scripts/snakeit.sh" 
+
+# In the work directory, these raw data files are needed.
+# "Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_{timestamp}.bin"
+rawdata_bin_p = config["binpat"]
+
+
+# These names must match what get-fpdata.sh provide.
+# We must enact different patterns depending on the sample.
+FP2SAMPLES = ["dv-2000v", "dv-2000v-h2mm0", "dv-2000v-h2mm5"]
+FP3SAMPLES = ["reference3views"]
+FPSAMPLES = FP2SAMPLES + FP3SAMPLES
 
 # The 50L DAQ run timestamps we want to process
-TIMESTAMPS = [s for s in open("scripts/rawdata-2020-05-26.stamps").read().split('\n') if s.strip()]
+#TIMESTAMPS = [s for s in open("scripts/rawdata-2020-05-26.stamps").read().split('\n') if s.strip()]
+TIMESTAMPS = [s for s in open(config["stamps"]).read().split('\n') if s.strip()]
 
-workdir: os.environ.get("PCBRO_DATADIR", "/home/bv/work/pcbro")
 
-# Make intermediate NPZ file from FP zip file
-rule fpnpxfile:
+# We make Numpy .npz files with minimal processing beyond reformatting
+# in order to erase the differing formats and superficial differences
+# in content between the various raw FP samples.  Once we have
+# fpresp/*.npz then each "resp" looks the same to the rest of the
+# rules.  They culminate in:
+fpresp_p = "fpresp/{resp}.npz"
+
+# Make intermediate 2-view NPZ file from FP zip file.
+rule fp2npzfile:
     input: 
         "fp/{resp}-fixed.tgz"
     output:
-        "tmp/{resp}-fp.npz"
+        fpresp_p
     shell:
         "wirecell-pcbro fpstrips-fp-npz {input} {output}"
-
+# Make intermediate 3-view NPZ file from FP zip file.
+rule fp3npzfile:
+    input:
+        col = "fp/{resp}/collection.tar",
+        ind1 = "fp/{resp}/induction1.tar",
+        ind2 = "fp/{resp}/induction2.tar"
+    output:
+        fpresp_p
+    shell: """
+    wirecell-pcbro fpstrips-trio-npz \
+      --col {input.col} --ind1 {input.ind1} --ind2 {input.ind2} \
+      {output}
+    """
 # Make a PDF vis of FP data
 rule fppdffile:
     input:
-        "tmp/{resp}-fp.npz"
+        fpresp_p
     output:
-        "plots/{resp}-fp.pdf"
+        "plots/fpresp/{resp}.pdf"
     shell:
         "wirecell-pcbro fpstrips-draw-fp {input} {output}"
 
 # Make intermediate NPZ file following WCT units/layout
 rule wctnpzfile:
     input:
-        "tmp/{resp}-fp.npz"
+        fpresp_p
     output:
-        "tmp/{resp}.npz"
+        "wctresp/{resp}.npz"
     shell:
         "wirecell-pcbro fpstrips-wct-npz {input} {output}"
 
-# Make WCT field response JSON file from FP zip file
+# Make WCT field response JSON file from FP npz file
 rule wctjsonfile:
     input:
-        "fp/{resp}-fixed.tgz"
+        fpresp_p
     output:
         "resp/{resp}.json.bz2"
     shell:
@@ -50,61 +89,65 @@ rule wctjsonfile:
 # Make standard WCT field response plots
 rule fieldplots:
     input:
-        "resp/{resp}.json.bz2"
+        rules.wctjsonfile.output
     output:
-        "plots/{resp}.png"
+        "plots/wctresp/{resp}.png"
     shell:
         "wirecell-sigproc plot-response --region 0 --trange 0,120 --reflect {input} {output}"
 
 
 # Run field response file preperation for all known samples
-rule fieldprep:
+rule all_fields:
     input:
-        expand("resp/{resp}.json.bz2", resp=FPSAMPLES) \
-            + expand("plots/{resp}-fp.pdf", resp=FPSAMPLES)
-            + expand("plots/{resp}.png", resp=FPSAMPLES)
-
+        expand(rules.wctjsonfile.output, resp=FPSAMPLES),
+        expand(rules.fieldplots.output, resp=FPSAMPLES),
+        expand(rules.fppdffile.output, resp=FPSAMPLES)
 
 # Decode raw 50L data into NPZ
 rule decode:
     input:
-        "Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_{timestamp}.bin"
+        rawdata_bin_p
     output:
-        "proc/raw-{timestamp}.npz"
-    shell:
-        "wire-cell -A infile={input} -A outfile={output} -c cli-bin-npz.jsonnet"
+        "proc/raw/raw-{timestamp}.npz"
+    shell: """
+    wire-cell -A infile={input} -A outfile={output} \
+      -c cli-bin-npz.jsonnet
+    """
 
 # Run sigproc from raw 50L data
 rule sigproc:
     input:
-        data = "Rawdata_05_26_2020/run01tri/WIB00step18_FEMB_B8_{timestamp}.bin",
-        resp = "resp/{resp}.json.bz2"
+        data = rawdata_bin_p,
+        resp = rules.wctjsonfile.output
     output:
-        "proc/sig-{resp}-{timestamp}.npz"
-    shell:
-        "wire-cell -A resp={input.resp} -A infile={input.data} -A outfile={output} -c cli-bin-sp-npz.jsonnet"
+        "proc/sig/sig-{resp}-{timestamp}.npz"
+    shell: """
+    wire-cell -A resps_file={input.resp} \
+      -A infile={input.data} -A outfile={output} \
+      -c cli-bin-sp-npz.jsonnet
+    """
     
 
 rule activity:
     input:
-        "proc/sig-{resp}-{timestamp}.npz"
+        rules.sigproc.output
     output:
-        "proc/sig-active-{resp}-{timestamp}.npz"
+        "proc/act/sig-active-{resp}-{timestamp}.npz"
     shell:
         "wirecell-pcbro activity -t 1000000 {input} {output}"
 
 # Roll up everything
 rule wctproc:
     input:
-        expand("proc/raw-{timestamp}.npz", timestamp=TIMESTAMPS) \
-            + expand("proc/sig-{resp}-{timestamp}.npz", resp=FPSAMPLES, timestamp=TIMESTAMPS) \
-            + expand("proc/sig-active-{resp}-{timestamp}.npz", resp=FPSAMPLES, timestamp=TIMESTAMPS)
+        expand(rules.decode.output, timestamp=TIMESTAMPS),
+        expand(rules.sigproc.output, resp=FPSAMPLES, timestamp=TIMESTAMPS),
+        expand(rules.activity.output, resp=FPSAMPLES, timestamp=TIMESTAMPS)
 
 rule evdplots_raw:
     input:
-        "proc/raw-{timestamp}.npz"
+        rules.decode.output
     output:
-        "plots/raw-{timestamp}-{trigger}.{plotext}"
+        "plots/raw/raw-{timestamp}-{trigger}.{plotext}"
     shell:
         "wirecell-pcbro evd2d -t {wildcards.trigger} --channels '0:64,64:128' \
         --title='Raw data from run {wildcards.timestamp} trigger {{trigger}}' \
@@ -117,9 +160,9 @@ rule evdplots_raw:
 
 rule evdplots_sig:
     input:
-        "proc/sig-{resp}-{timestamp}.npz"
+        rules.sigproc.output
     output:
-        "plots/sig-{resp}-{timestamp}-{trigger}-{cmap}.{plotext}"
+        "plots/sig/sig-{resp}-{timestamp}-{trigger}-{cmap}.{plotext}"
     shell:
         "wirecell-pcbro evd2d -t {wildcards.trigger} --channels '0:64,64:128' \
         --title='{wildcards.resp} signals from run {wildcards.timestamp} trigger {{trigger}}' \
@@ -129,13 +172,14 @@ rule evdplots_sig:
         -o {output} {input}"
 
 
-rule evdplots:
+rule all_proc:
     input:
-        expand("plots/raw-{timestamp}-{trigger}.{plotext}",
+        rules.wctproc.input,
+        expand(rules.evdplots_raw.output,
                timestamp=["159048405892"],
                trigger=["31"],
                plotext=["png","pdf"]) +
-        expand("plots/sig-{resp}-{timestamp}-{trigger}-{cmap}.{plotext}",
+        expand(rules.evdplots_sig.output,
                resp=FPSAMPLES,
                cmap=['cubehelix','gnuplot','seismic'],
                timestamp=["159048405892"],
@@ -143,3 +187,6 @@ rule evdplots:
                plotext=["png","pdf"])
 
 
+rule all:
+    input:
+        rules.all_proc.all

@@ -45,19 +45,6 @@ function(outfile,
 
     local graph = g.pipeline(beg+mid+end),
 
-    local app = {
-        type: 'Pgrapher',
-        data: {
-            edges: g.edges(graph)
-        },
-    },
-    local cmdline = {
-        type: "wire-cell",
-        data: {
-            plugins: pcbront.plugins + ["WireCellApps", "WireCellPgraph"],
-            apps: ["Pgrapher"],
-        }
-    },
-    seq: [cmdline] + g.uses(graph) + [app],
+    seq: pcbront.appcfg(graph)
 }.seq
 

@@ -1,4 +1,11 @@
 #!/bin/bash
+
+# This script prepares input files from FP by downloading them from
+# dropbox, doing some cosmetic fixes and creating tar files.
+#
+# File names and locations are matched to what the pcbro/Snakefile
+# expects.
+
 set -e
 set -x
 
@@ -66,11 +73,12 @@ do
     cd $one/Reference3views
     for pln in collection induction1 induction2
     do
-        if [ -f "${pln}.tar" ] ; then
+        if [ -f "../${pln}.tar" ] ; then
             echo "$pln.tar exists"
             continue
         fi
         tar -cf "${pln}.tar" $pln
+        mv "${pln}.tar" ../
     done
     cd -
 done

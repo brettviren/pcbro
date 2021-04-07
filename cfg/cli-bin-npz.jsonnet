@@ -1,4 +1,4 @@
-local pcbro = import "pcbro.jsonnet";
+local pcbront = import "pcbront.jsonnet";
 local g = import "pgraph.jsonnet";
 
 // Return a wire-cell CLI sequence.
@@ -9,27 +9,9 @@ local g = import "pgraph.jsonnet";
 //   -c cli-bin2npz.jsonent [...]
 //
 // infile may also be an array
-function(infile, outfile, nplanes=3) {
-    
-    // Return graph to convert from pcbro .bin to .npz
-    local graph = g.pipeline([pcbro.rawsource("input", infile, nplanes=nplanes),
-                              pcbro.tentoframe("tensor-to-frame"),
-                              pcbro.npzsink("output", outfile),
-                              pcbro.dumpframes("dumpframes")]),
-
-    local app = {
-        type: 'Pgrapher',
-        data: {
-            edges: g.edges(graph)
-        },
-    },
-    local cmdline = {
-        type: "wire-cell",
-        data: {
-            plugins: pcbro.plugins + ["WireCellApps", "WireCellPgraph"],
-            apps: ["Pgrapher"],
-        }
-    },
-    seq: [cmdline] + g.uses(graph) + [app],
-}.seq
-
+function(infile, outfile, nplanes=3) 
+pcbront.appcfg(g.pipeline([
+    pcbront.io.rawsource("input", infile, nplanes=nplanes),
+    pcbront.io.tentoframe("tensor-to-frame"),
+    pcbront.io.npzsink("output", outfile),
+    pcbront.io.dumpframes("dumpframes")]))

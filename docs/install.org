@@ -35,3 +35,8 @@ The ~pcbro~ package provides a ~wirecell.pcbro~ Python module and a CLI called a
 
   $ wirecell-pcbro --help
 #+end_example
+
+* Performance
+
+Expect factor 10x slowdown for sigproc if ~--build-debug-ggdb3~ build
+flag is used to build WCT.  Processing one raw ~.bin~ file: 3s to 35s.
