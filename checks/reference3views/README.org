@@ -78,3 +78,21 @@ And zoom in:
 #+ATTR_ORG: :width 600
 [[file:reference3view-zoom.png]]
 
+
+
+* Sim/sigproc
+
+Running 50L geometry with 3-view responses is a fictional but gives a
+rough test.
+
+#+ATTR_ORG: :width 600
+[[file:50l-sim-reference3views.png]]
+
+
+#+ATTR_ORG: :width 600
+[[file:50l-ssp-reference3views.png]]
+
+
+Some tuning is likely needed to increase efficiency for the induction
+planes, especially the elongated.
+ 

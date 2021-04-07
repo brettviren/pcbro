@@ -362,16 +362,30 @@ def list_holes(strips, slices, planes, output):
 
 
 @cli.command("gen-wires")
+@click.option("-d", "--detector", default="50l",
+              type=click.Choice(["50l"]),
+              #type=click.Choice(["50l","ref3"]),
+              help="Set the detector")
+@click.option("-p", "--pitch", default="5*mm",
+              help="Set pitch of planes")
 @click.argument("output-file")
-def gen_wires(output_file):
+def gen_wires(detector, pitch, output_file):
     '''Generate a "oneside wires" file.  Use "wirecell-util
     convert-oneside-wires" to turn into .json.bz2 file.
 
     columns:
         channel plane wire sx sy sz ex ey ez
     '''
-    import wires
-    text = wires.generate()
+    import wirecell.pcbro.wires as wires
+
+    if "," in pitch:
+        pitch = pitch.split(",")
+    else:
+        pitch = [pitch]*3
+    pitch = [eval(p, units.__dict__) for p in pitch]
+
+    meth = getattr(wires, "generate_" + detector)
+    text = meth(pitch)
     open(output_file,"wb").write(text.encode('ascii'))
 
 
