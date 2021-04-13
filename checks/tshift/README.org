@@ -8,7 +8,7 @@
 
 * WCT sim problems
 
-** COMMENT Barf on big response
+** Barf on big response
 
 FP responses have 1196 0.1us ticks.  PIR crashes on more than 1000.
 
@@ -37,4 +37,9 @@ response to about 60 ticks earlier avoids this.  But, this shouldn't
 be needed.
 
 
-** Preshadow function of time shift
+
+* todo
+
+- [ ] convert FP FRs to truncated WCT FR's for 50L 2-view and isoc 3-view, expect to need 42.5us shift based on Haiwang's checks between GARFIELD and FP responses
+- [ ] check FP FRs against 50-L data for time shift and normalization
+  - need a real muon sim for norm

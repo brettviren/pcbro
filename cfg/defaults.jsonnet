@@ -14,7 +14,7 @@ local wc = import "wirecell.jsonnet";
 
     daq: {
         tick: 0.5*wc.us,
-        nticks: 1000,
+        nticks: 646,
     },
     lar: {
         // Longitudinal diffusion constant
