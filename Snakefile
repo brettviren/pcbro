@@ -165,7 +165,7 @@ rule evdplots_raw:
         --color-unit='ADC from baseline' \
         --color-map={wildcards.cmap} \
         --color-range='-300,0,300' \
-        --ticks '100:550' --tshift '-12' \
+        --ticks '0:645' --tshift '-12' \
         --baseline-subtract=median \
         -o {output} {input}
     """

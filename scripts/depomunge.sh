@@ -46,7 +46,7 @@ fi
 
 wirecell-pcbro \
     evd2d \
-    --ticks='0:1000' \
+    --ticks='0:645' \
     --color-range='-300,0,300' \
     --color-map=seismic \
     --baseline-subtract=median \
