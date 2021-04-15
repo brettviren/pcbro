@@ -103,6 +103,24 @@ def fpstrips_trio_npz(ind1, ind2, col, npzname):
     numpy.savez(npzname, **out)
 
 
+
+@cli.command("fpstrips-draw-speed")
+@click.option("-o","--output", default="plot.pdf",
+              help="Output file")
+@click.option("-s","--start", default="0*us",
+              help="Start time, using units")
+@click.argument("npzfile")
+def fpstrips_draw_speed(output, start, npzfile):
+    '''
+    Given an FP npz file, plot velocity magnitude as impact vs step
+    '''
+    start = eval(start, units.__dict__)
+
+    from .fpstrips import draw_speed
+    arrs = numpy.load(npzfile)
+    draw_speed(arrs, output, start)
+    
+
 @cli.command("fpstrips-draw-fp")
 @click.argument("npzname")
 @click.argument("pdfname")
@@ -480,6 +498,7 @@ def evd2d(baseline_subtract, tag, trigger, aspect,
     fig.subplots_adjust(top=0.95)
     plt.savefig(output, bbox_inches='tight')
 
+    
 
 @cli.command("plot-one")
 @click.option("--baseline-subtract", type=click.Choice(['median','']), default='',

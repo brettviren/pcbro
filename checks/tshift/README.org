@@ -38,8 +38,3 @@ be needed.
 
 
 
-* todo
-
-- [ ] convert FP FRs to truncated WCT FR's for 50L 2-view and isoc 3-view, expect to need 42.5us shift based on Haiwang's checks between GARFIELD and FP responses
-- [ ] check FP FRs against 50-L data for time shift and normalization
-  - need a real muon sim for norm

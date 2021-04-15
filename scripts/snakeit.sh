@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -x
 sdir="$(dirname $(realpath $BASH_SOURCE))"
 srcdir="$(dirname $sdir)"
 

@@ -28,8 +28,19 @@ fdir = config["rfrdir"]         # raw field response
 # These names must match what get-fpdata.sh provide.
 # We must enact different patterns depending on the sample.
 FP2SAMPLES = ["dv-2000v", "dv-2000v-h2mm0", "dv-2000v-h2mm5"]
-FP3SAMPLES = ["reference3views"]
+FP3SAMPLES = ["reference3views-h2mm3", "reference3views-h2mm4"]
 FPSAMPLES = FP2SAMPLES + FP3SAMPLES
+
+fp_pitches_mm={
+    "dv-2000v":[5.0,5.0,5.0],
+    "dv-2000v-h2mm0":[5.0,5.0,5.0],
+    "dv-2000v-h2mm5":[5.0,5.0,5.0],    
+    "reference3views-h2mm3":[7.35,7.35,4.9],
+    "reference3views-h2mm4":[7.50,7.50,5.0]}
+def fp_pitches(w):
+    ppp = fp_pitches_mm[w.resp]
+    return ",".join([f'{p}*mm' for p in ppp])
+
 
 # The 50L DAQ run timestamps we want to process
 #TIMESTAMPS = [s for s in open("scripts/rawdata-2020-05-26.stamps").read().split('\n') if s.strip()]
@@ -45,17 +56,21 @@ TRIGGERS = [0]
 # in content between the various raw FP samples.  Once we have
 # fpresp/*.npz then each "resp" looks the same to the rest of the
 # rules.  They culminate in:
-fpresp_p = "fpresp/{resp}.npz"
+fpresp_p = f"{odir}/fpresp/{{resp}}.npz"
 
 # Make intermediate 2-view NPZ file from FP zip file.
 rule fp2npzfile:
     input: 
-        "fp/{resp}-fixed.tgz"
+        f"{fdir}/{{resp}}-fixed.tgz"
     output:
         fpresp_p
+    wildcard_constraints:
+        resp=r"dv-2000v.*"
     shell:
         "wirecell-pcbro fpstrips-fp-npz {input} {output}"
-# Make intermediate 3-view NPZ file from FP zip file.
+
+# Make intermediate 3-view NPZ file from FP data repacked to tar file
+# for FP3SAMPLES reference3views-{hole}.  see scripts/get-fpdata.sh
 rule fp3npzfile:
     input:
         col = f"{fdir}/{{resp}}/collection.tar",
@@ -63,19 +78,34 @@ rule fp3npzfile:
         ind2 =f"{fdir}/{{resp}}/induction2.tar"
     output:
         fpresp_p
+
+    wildcard_constraints:
+        resp=r"reference.*"
+
     shell: """
     wirecell-pcbro fpstrips-trio-npz \
       --col {input.col} --ind1 {input.ind1} --ind2 {input.ind2} \
       {output}
     """
+rule all_fpnpz:
+    input:
+        expand(fpresp_p, resp=FP2SAMPLES),
+        expand(fpresp_p, resp=FP3SAMPLES)        
+
 # Make a PDF vis of FP data
 rule fppdffile:
     input:
         fpresp_p
     output:
-        f"{odir}/plots/fpresp/{{resp}}.pdf"
+        respf = f"{odir}/plots/fpresp/{{resp}}.pdf",
+        speed = f"{odir}/plots/fpresp/{{resp}}-speed.pdf",
+        speedzoom = f"{odir}/plots/fpresp/{{resp}}-speedzoom.pdf"
     shell:
-        "wirecell-pcbro fpstrips-draw-fp {input} {output}"
+        """
+        wirecell-pcbro fpstrips-draw-fp {input} {output.respf} ;
+        wirecell-pcbro fpstrips-draw-speed             -o {output.speed} {input} ;
+        wirecell-pcbro fpstrips-draw-speed -s '110*us' -o {output.speedzoom} {input}
+        """
 
 # Make intermediate NPZ file following WCT units/layout
 rule wctnpzfile:
@@ -92,8 +122,39 @@ rule wctjsonfile:
         fpresp_p
     output:
         f"{odir}/resp/{{resp}}.json.bz2"
+    params:
+        pitch = fp_pitches
     shell:
-        "wirecell-pcbro convert-fpstrips {input} {output}"
+        "wirecell-pcbro convert-fpstrips --pitch {params.pitch} {input} {output}"
+
+# We generate wires files on the fly
+# Fixme: using detector=50l is not right for 3-views
+# need to update gen-wires for true 3-views
+rule wiretxt:
+    input:
+        fpresp_p
+    output:
+        f"{odir}/wires/{{resp}}-wires.txt"
+    params:
+        pitch = fp_pitches, 
+        detector = "50l"
+    shell: """
+    wirecell-pcbro gen-wires --detector {params.detector} --pitch '{params.pitch}' {output}
+    """
+rule wctwires:
+    input:
+        rules.wiretxt.output
+    output:
+        f"{odir}/wires/{{resp}}-wires.json.bz2"
+    shell: """
+    wirecell-util convert-oneside-wires {input} {output}
+    """
+
+rule all_wires:
+    input:
+        expand(rules.wctwires.output, resp=FPSAMPLES)
+
+
 
 # Make standard WCT field response plots
 rule fieldplots:
@@ -103,6 +164,13 @@ rule fieldplots:
         f"{odir}/plots/wctresp/{{resp}}.png"
     shell:
         "wirecell-sigproc plot-response --region 0 --trange 0,120 --reflect {input} {output}"
+rule fieldplotszoom:
+    input:
+        rules.wctjsonfile.output
+    output:
+        f"{odir}/plots/wctresp/{{resp}}-zoom.png"
+    shell:
+        "wirecell-sigproc plot-response --region 0 --trange 100,120 --reflect {input} {output}"
 
 
 # Run field response file preperation for all known samples
@@ -110,6 +178,7 @@ rule all_fields:
     input:
         expand(rules.wctjsonfile.output, resp=FPSAMPLES),
         expand(rules.fieldplots.output, resp=FPSAMPLES),
+        expand(rules.fieldplotszoom.output, resp=FPSAMPLES),
         expand(rules.fppdffile.output, resp=FPSAMPLES)
 
 # Decode raw 50L data into NPZ
@@ -122,7 +191,6 @@ rule decode:
     wire-cell -A infile={input} -A outfile={output} \
       -c cli-bin-npz.jsonnet
     """
-
 # Run sigproc from raw 50L data
 rule sigproc:
     input:
@@ -135,8 +203,6 @@ rule sigproc:
       -A infile={input.data} -A outfile={output} \
       -c cli-bin-sp-npz.jsonnet
     """
-    
-
 rule activity:
     input:
         rules.sigproc.output
@@ -145,14 +211,12 @@ rule activity:
     shell: """ 
     wirecell-pcbro activity -t 1000000 {input} {output}
     """
-
 # Roll up everything
 rule wctproc:
     input:
         expand(rules.decode.output, timestamp=TIMESTAMPS),
         expand(rules.sigproc.output, resp=FP2SAMPLES, timestamp=TIMESTAMPS),
         expand(rules.activity.output, resp=FP2SAMPLES, timestamp=TIMESTAMPS)
-
 
 rule evdplots_raw:
     input:
@@ -170,7 +234,6 @@ rule evdplots_raw:
         -o {output} {input}
     """
 
-
 rule evdplots_sig:
     input:
         rules.sigproc.output
@@ -184,7 +247,6 @@ rule evdplots_sig:
         -T gauss0 \
         -o {output} {input}
     """
-
 
 favorite_timestamps = ["159048405892"]
 rule fav_proc:
@@ -220,6 +282,7 @@ rule fav_proc:
 # A "tier" of "sim" (just simulation) or "ssp" (sim+sigproc)
 rule wctsimtier3:
     input:
+        wiresfile=rules.wctwires.output,
         respfile=rules.wctjsonfile.output,
         config=f"{cdir}/cli-{{tier}}-npz.jsonnet"
     output:
@@ -230,16 +293,17 @@ rule wctsimtier3:
         """
         mkdir -p {params.outdir};
         wire-cell -c {input.config} \
+          -A wires_file={input.wiresfile} \
           -A resps_file={input.respfile} \
           -A outfile={output} 
         """
 
-tier_plot_p = f"{odir}/plots/{{tier}}/{{trigger}}/{{resp}}.png"
+tier_plot3_p = f"{odir}/plots/{{tier}}/{{trigger}}/{{resp}}.png"
 rule evdplots3_sim:
     input:
         rules.wctsimtier3.output
     output:
-        tier_plot_p
+        tier_plot3_p
     wildcard_constraints:
         tier=r"\bsim\b"
     shell: """
@@ -248,7 +312,7 @@ rule evdplots3_sim:
         --cnames 'col,ind1,ind2' \
         --title='Sim raw trigger {wildcards.trigger} ({wildcards.resp})' \
         --color-unit='ADC from baseline' \
-        --color-map={wildcards.cmap} \
+        --color-map=seismic \
         --color-range='-300,0,300' \
         --ticks='0:800' \
         --baseline-subtract=median \
@@ -260,7 +324,7 @@ rule evdplots3_ssp:
     input:
         rules.wctsimtier3.output
     output:
-        tier_plot_p
+        tier_plot3_p
     wildcard_constraints:
         tier=r"\bssp\b"
     shell: """
@@ -268,7 +332,7 @@ rule evdplots3_ssp:
         --channels '0:64,64:128,128:192' \
         --cnames 'col,ind1,ind2' \
         --title='Sim sigproc trigger {wildcards.trigger} ({wildcards.resp})' \
-        --color-map={wildcards.cmap} \
+        --color-map=cubehelix \
         --color-range='0,2500,20000' \
         --mask-min=0 \
         --ticks='0:800' \
@@ -280,8 +344,7 @@ rule all_tier3:
     input:
         expand(rules.wctsimtier3.output,
                resp=FP3SAMPLES, tier=["sim","ssp"]),
-        expand(tier_plot_p, resp=FP3SAMPLES, tier=["sim","ssp"],
-               cmap=["seismic", "cubehelix", "gnuplot", "nipy_spectral"],
+        expand(tier_plot3_p, resp=FP3SAMPLES, tier=["sim","ssp"],
                trigger=TRIGGERS)
 
 

@@ -31,7 +31,7 @@ def generate_50l(pitches=(5*units.mm, 5*units.mm, 5*units.mm)):
     # - 1-64 for collection
     # - 65-128 for induction 1
     # - 129-192 for duplicate induction 2
-    print("warning: using ideal wire spacing")
+    print(f"generate wires with: {pitch_cm} cm")
     lines = list()
     
     # In Z vs Y space the detector has 4 unique quadrants (ignoring

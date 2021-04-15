@@ -329,19 +329,94 @@ def arrs2pr(wct, pitchdict):
     return ret
 
 
+fp_time_unit = units.us
+fp_dist_unit = units.mm
+
+def step_speed(path_txyz_step):
+    '''
+    Given (npath,4,nstep) where 4=t,x,y,z return speed.
+    '''
+    arr = path_txyz_step        # shorthand
+
+    dt = (arr[:,0,1:] - arr[:,0,:-1])*fp_time_unit
+    dx = (arr[:,1,1:] - arr[:,1,:-1])*fp_dist_unit
+    dy = (arr[:,2,1:] - arr[:,2,:-1])*fp_dist_unit
+    dz = (arr[:,3,1:] - arr[:,3,:-1])*fp_dist_unit
+    dr = numpy.sqrt(dx*dx + dy*dy + dz*dz)
+    
+    shape = dr.shape
+
+    dr_l = dr.reshape(-1)
+    dt_l = dt.reshape(-1)
+    dt_l[dr_l == 0] = 1.0
+    v_l = numpy.divide(dr_l, dt_l)
+    v = v_l.reshape(shape)
+    return v
+
+# t:(0, ..., 119.53)us, 0.005us bins
+# x,y shown as path IDs:
+# x:(0,1,2,3,4,5,6,7,8,9,10,11, 0,1,2,3,4,5,6,7,8,9,10,11, ...
+# y:(0,0,0,0,0,0,0,0,0,0, 0, 0, 1,1,1,1,1,1,1,1,1,1, 1, 1, ...
+# z:(199.95, ................., ......................... )mm
+# last z value: 16.54 with a ragged end point
+
+def draw_speed(arrs, outfile, start_time=0.0):
+    '''
+    Draw drift speed as impact vs step
+    '''
+    sunits = units.mm/units.us
+    fp_tick = 5*units.ns
+    start_tick = int(start_time / fp_tick)
+    start_us = start_time/units.us
+    print(f'start at {start_us} us = {start_tick} FP ticks')
+    with PdfPages(outfile) as pdf:
+
+        for pln, arr in sorted(arrs.items()):
+            nfids, ncols, nsteps_tot = arr.shape
+            print(f'n FP steps: {nsteps_tot}')
+            nsteps = nsteps_tot - start_tick
+            assert ncols == 10
+
+            ntran = 12
+            nlong = nfids // ntran
+            block = arr[:,:4,start_tick:].reshape((nlong, ntran, 4, nsteps))
+
+            extent = [start_us, start_us + nsteps*fp_tick/units.us, 0, ntran]
+            fig,axes = plt.subplots(nrows=nlong, sharex=True)
+            for ilong in range(nlong):
+                speed = step_speed(block[ilong])
+                speed = speed[:,1:] # throw away first sample
+                print(f'speed: {speed.shape} {speed[0]/(units.mm/units.us)}')
+                im = axes[ilong].imshow(speed/sunits, aspect='auto', 
+                                        extent=extent, interpolation='none')
+                axes[ilong].set_ylabel(f'row {ilong}')
+            axes[-1].set_xlabel(f'step time [us]')
+
+            axes[0].set_title(f'{pln} drift speeds')
+            plt.tight_layout()
+            fig.colorbar(im, ax = axes)
+            pdf.savefig(plt.gcf())
+            plt.close();
+            
+
+
+
+
 def draw_fp(arrs, pdfname, start=22000, skip=10):
-    '''Make multipage pdf file with diagnostic plots from FP-style arrays.
+    '''
+    Make multipage pdf file with diagnostic plots from FP-style
+    arrays.
 
     Input "arrs" holds "raw" numpy arrays as from fpzip2arrs().
 
-    The "start" sets when interesting region of the ends of paths begin.
+    The "start" sets when interesting region of the ends of paths
+    begin.
 
     The "skip" will decimate paths for plots that otherwise take too
     much time or PDF file space to produce in full resolution.
 
     Plots include unprocessed views of these arrays as well as result
     of processing to form input to conversion to WCT form.
-
     '''
     xyz="XYZ"
 
@@ -368,7 +443,7 @@ def draw_fp(arrs, pdfname, start=22000, skip=10):
             plt.close();
 
             # paths
-            fid_xyzp = arr[:, 1:4, start::skip]
+            # fid_xyzp = arr[:, 1:4, start::skip]
 
             # reshape to be (nlong, ntran)
             # fidrs = numpy.asarray(range(nfids)).reshape((-1,12))

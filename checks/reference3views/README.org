@@ -1,4 +1,6 @@
-* FP's notes
+* 30 degree
+
+FP's notes
 
 #+begin_quote
 
@@ -23,8 +25,7 @@ The format is the same as for the 50 liter 2view case.
 
 [[file:layout.png]]
 
-
-* Notes
+** Notes
 
 Each plane has same file ID numbers are ~fort.2xx~.  To process, tar up
 each sub-dir separately 
@@ -80,7 +81,7 @@ And zoom in:
 
 
 
-* Sim/sigproc
+** Sim/sigproc
 
 Running 50L geometry with 3-view responses is a fictional but gives a
 rough test.
@@ -96,3 +97,26 @@ rough test.
 Some tuning is likely needed to increase efficiency for the induction
 planes, especially the elongated.
  
+* 45 deg
+
+this is to let you know that now in https://www.dropbox.com/sh/tfbgqrebc94ia51/AADNer78R-ff3MfbR5RPpRLoa?dl=0
+there are two set of 60 deg equilateral reference cases corresponding to the following set of parameters:
+
+    - hole spacing ~2.85mm
+    - 2.3 mm hole diameter
+    - strips oriented at 120 deg
+    - collection strip pitch ~ 4.9 mm
+    - inductions strip pitch: ~7.35 mm
+    - distance between the two PCB’s: 10 mm 
+    - PCB thichness: 3.2 mm
+
+and 
+
+    - hole spacing ~2.9mm
+    - 2.4 mm hole diameter
+    - strips oriented at 120 deg
+    - collection strip pitch ~ 5.0 mm
+    - inductions strip pitch: ~7.5 mm
+    - distance between the two PCB’s: 10 mm 
+    - PCB thichness: 3.2 mm
+
