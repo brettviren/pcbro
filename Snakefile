@@ -49,7 +49,8 @@ TIMESTAMPS = [s for s in open(config["stamps"]).read().split('\n') if s.strip()]
 
 # Just simulation or sim+sigproc
 TIERS = ["sim", "ssp"]
-TRIGGERS = [0]
+DEPOS = ["gen", "munged"]
+SIMTRIGGERS = [0]
 
 # We make Numpy .npz files with minimal processing beyond reformatting
 # in order to erase the differing formats and superficial differences
@@ -278,17 +279,18 @@ rule fav_proc:
                trigger=["31"],
                plotext=["png","pdf"])
 
-
-# A "tier" of "sim" (just simulation) or "ssp" (sim+sigproc)
-rule wctsimtier3:
+# Use generated depos.  For now, just one, but change literal "gen" to
+# a variable to add more later.  A "tier" of "sim" (just simulation)
+# or "ssp" (sim+sigproc)
+rule wctgentier:
     input:
         wiresfile=rules.wctwires.output,
         respfile=rules.wctjsonfile.output,
-        config=f"{cdir}/cli-{{tier}}-npz.jsonnet"
+        config=f"{cdir}/cli-gen-{{tier}}-npz.jsonnet"
     output:
-        f"{odir}/proc/{{tier}}/{{resp}}.npz"
+        f"{odir}/proc/{{tier}}/gen/{{resp}}.npz"
     params:
-        outdir = f"{odir}/proc/{{tier}}"
+        outdir = f"{odir}/proc/{{tier}}/gen"
     shell:
         """
         mkdir -p {params.outdir};
@@ -297,13 +299,33 @@ rule wctsimtier3:
           -A resps_file={input.respfile} \
           -A outfile={output} 
         """
-
-tier_plot3_p = f"{odir}/plots/{{tier}}/{{trigger}}/{{resp}}.png"
-rule evdplots3_sim:
+# Use depos from an npz file found with name {depos} and a "tier" of
+# "sim" (just simulation) or "ssp" (sim+sigproc).
+rule wctnpztier:
     input:
-        rules.wctsimtier3.output
+        wiresfile=rules.wctwires.output,
+        respfile=rules.wctjsonfile.output,
+        deposfile=f"{odir}/depos/{{depos}}.npz",
+        config=f"{cdir}/cli-npz-{{tier}}-npz.jsonnet"
     output:
-        tier_plot3_p
+        f"{odir}/proc/{{tier}}/{{depos}}/{{resp}}.npz"
+    params:
+        outdir = f"{odir}/proc/{{tier}}/{{depos}}"
+    shell: """
+    mkdir -p {params.outdir};
+    wire-cell -c {input.config} \
+      -A depofile={input.deposfile} \
+      -A wires_file={input.wiresfile} \
+      -A resps_file={input.respfile} \
+      -A framefile={output}
+    """
+
+tier_plot_p = f"{odir}/plots/{{tier}}/{{depos}}/{{trigger}}/{{resp}}.png"
+rule evdplots_sim:
+    input:
+        f"{odir}/proc/{{tier}}/{{depos}}/{{resp}}.npz"
+    output:
+        tier_plot_p
     wildcard_constraints:
         tier=r"\bsim\b"
     shell: """
@@ -320,11 +342,11 @@ rule evdplots3_sim:
         -o {output} {input}
     """
 
-rule evdplots3_ssp:
+rule evdplots_ssp:
     input:
-        rules.wctsimtier3.output
+        f"{odir}/proc/{{tier}}/{{depos}}/{{resp}}.npz"
     output:
-        tier_plot3_p
+        tier_plot_p
     wildcard_constraints:
         tier=r"\bssp\b"
     shell: """
@@ -340,19 +362,19 @@ rule evdplots3_ssp:
         -o {output} {input}
     """
 
-rule all_tier3:
+rule all_tier:
     input:
-        expand(rules.wctsimtier3.output,
-               resp=FP3SAMPLES, tier=["sim","ssp"]),
-        expand(tier_plot3_p, resp=FP3SAMPLES, tier=["sim","ssp"],
-               trigger=TRIGGERS)
-
+        expand(tier_plot_p,
+               resp=FPSAMPLES,
+               tier=TIERS,
+               depos=DEPOS,
+               trigger=SIMTRIGGERS)
 
 rule avgwf_raw:
     input:
         rules.decode.output
     output:
-        f"{odir}/plots/avgwf/raw-{{timestamp}}-{{trigger}}.png"
+        f"{odir}/plots/avgwf/raw/{{resp}}-{{timestamp}}-{{trigger}}.png"
     params:
         array = "frame__{trigger}"
     shell: """
@@ -360,35 +382,69 @@ rule avgwf_raw:
       -a {params.array} \
       -o {output} {input}
     """
-rule avgwf_munge:
+
+rule depomunge: 
     input:
-        "munged-frame-sim.npz"
+        f'{odir}/haiwang-depos.npz'
     output:
-        f"{odir}/plots/avgwf/munged-frame-sim.png"
+        f"{odir}/depos/munged.npz"
     params:
-        array = "frame_orig0_0"
+        plotdir = f'{odir}/plots/depos/munged'
+    shell: """
+    mkdir -p {params.plotdir} ;
+    ./scripts/depomunge.py {input} {output} {params.plotdir}
+    """
+
+rule avgwf_sim:
+    input:
+        f"{odir}/proc/sim/{{depos}}/{{resp}}.npz"
+    output:
+        f"{odir}/plots/avgwf/sim/{{resp}}-{{depos}}-{{trigger}}.png"
+    params:
+        array = "frame_orig0_{trigger}"
     shell: """
     ./scripts/avgwf.py plot \
       -a {params.array} \
       -o {output} {input}
     """
 
+timestamp_trigger = [("159048336841","12"),
+                     ("159048364354","40"),
+                     ("159048405892","23")]
+
 rule all_avgwf:
     input:
-        expand(rules.avgwf_raw.output, zip,
-               timestamp=["159048336841",
-                          "159048364354",
-                          "159048405892"],
-               trigger=["12","40","23"]),
-        rules.avgwf_munge.output
-               
+        [expand(rules.avgwf_raw.output,
+                resp=FP2SAMPLES,
+                timestamp=tt[0], trigger=tt[1]) for tt in timestamp_trigger],
+        expand(rules.avgwf_sim.output,
+               resp=FPSAMPLES, depos=DEPOS, trigger=SIMTRIGGERS)
 
-# 12 /home/bv/work/pcbro/proc/raw/raw-159048336841.npz
-# 40 /home/bv/work/pcbro/proc/raw/raw-159048364354.npz
-# 23 /home/bv/work/pcbro/proc/raw/raw-159048405892.npz
-
+rule intwf_plot:
+    input:
+        raw = f"{odir}/proc/sim/{{depos}}/{{resp}}.npz",
+        sig = f"{odir}/proc/ssp/{{depos}}/{{resp}}.npz",
+    output:
+        f'{odir}/plots/intwf/{{depos}}/{{resp}}-{{trigger}}.{{ext}}'
+    shell: """
+    ./scripts/intwf.py plot \
+      -t {wildcards.trigger} \
+      -T '{wildcards.resp} {wildcards.depos} {{trigger}}' \
+      -r {input.raw} -s {input.sig} {output}
+    """
+rule all_intwf:
+    input:
+        expand(rules.intwf_plot.output,
+               trigger=SIMTRIGGERS, depos=DEPOS,
+               resp=FPSAMPLES, ext=["pdf","png"])
 
 rule all:
     input:
-        rules.fav_proc.input
+        rules.fav_proc.input,
+        rules.all_fpnpz.input,
+        rules.all_wires.input,
+        rules.all_fields.input,
+        rules.all_tier.input,
+        rules.all_avgwf.input,
+        rules.all_intwf.input
 

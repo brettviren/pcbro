@@ -1,26 +1,34 @@
 #!/bin/bash
+# hacky script to run depomunge.py and process the resulting depos
+# through wire-cell and wirecell-pcbro plotting.  This script is mean
+# to run from snakemake (or direct cli).
 
 set -e
 set -x
 
 mydir=$(dirname $(realpath $BASH_SOURCE))
 
-resp=$HOME/work/pcbro/resp/dv-2000v-h2mm0.json.bz2
+respname=${1:-dv-2000v-h2mm0}
+
+# Note, these patterns must mach Snakefile!
+
+resp=$HOME/work/pcbro/resp/$respname.json.bz2
 hwyds=$HOME/work/pcbro/haiwang-depos.npz
 
-outdir=$HOME/work/pcbro/depomunge
+outdir=$HOME/work/pcbro/depomunge/$respname
 mkdir -p $outdir
+pltdir=$HOME/work/pcbro/plots/depomunge/$respname
+mkdir -p $pltdir
 
 depos=$outdir/munged-depos.npz
 rframe=$outdir/munged-frame-sim.npz
 sframe=$outdir/munged-frame-ssp.npz
 
-rdisp=$outdir/munged-frame-sim.png
-sdisp=$outdir/munged-frame-ssp.png
+rdisp=$pltdir/munged-frame-sim.png
+sdisp=$pltdir/munged-frame-ssp.png
 
 rm -rf $depos $rframe $sframe
-$mydir/depomunge.py $hwyds $depos
-mv depomunge-*.png $outdir/
+$mydir/depomunge.py $hwyds $depos $pltdir/
 
 rm -f $rframe
 wire-cell \

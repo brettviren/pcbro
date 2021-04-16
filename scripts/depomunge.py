@@ -70,11 +70,15 @@ def plot(fname, depo, narrow=False):
     #         plt.close()
             
 
-fp = numpy.load(sys.argv[1])
+in_file = sys.argv[1]
+out_file = sys.argv[2]
+plot_dir = sys.argv[3]
+
+fp = numpy.load(in_file)
 data = fp['depo_data_0']
 info = fp['depo_info_0']
 
-plot("depomunge-before.png", data, False)
+plot(f"{plot_dir}/depomunge-before.png", data, False)
 
 # Center
 bb = numpy.array([(0,380),(-150,150),(-150,150)])
@@ -98,7 +102,7 @@ data[2] -= center[0]
 data[3] -= center[1]
 data[4] -= center[2]
 
-plot("depomunge-center.png", data, False)
+plot(f"{plot_dir}/depomunge-center.png", data, False)
 
 
 # Rotate
@@ -111,11 +115,11 @@ roty = R.from_rotvec(numpy.pi/4 * numpy.array([0, -1, 0]))
 
 data[2:5] = roty.apply(rotx.apply(data[2:5].T)).T
 
-plot("depomunge-rotate.png", data, False)
+plot(f"{plot_dir}/depomunge-rotate.png", data, False)
 
 data[2] += 100
 
-plot("depomunge-after.png", data, True)
+plot(f"{plot_dir}/depomunge-after.png", data, True)
 
-numpy.savez(sys.argv[2], depo_data_0=data, depo_info_0=info)
+numpy.savez(out_file, depo_data_0=data, depo_info_0=info)
 
