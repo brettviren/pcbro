@@ -80,7 +80,7 @@ def plot(array, output, offset, infile):
 
         axes[2,ind].semilogy(avg)
         axes[2,ind].grid()
-        axes[2,ind].set_ylim(0.1, 200.0)
+        axes[2,ind].set_ylim(0.01, 200.0)
         axes[2,ind].set_title(f"{nam} avg")
         axes[2,ind].set_xlim(0, 600.0)
 

@@ -304,7 +304,8 @@ def arrs2pr(wct, pitchdict):
                 # column in FP table
                 col = 4 + istrip
                 resp = pia[col]
-                pitchpos = (-istrip - (pi-6)/10.0)*pit
+                pitchpos = -istrip*pit - (pi-6)*0.1*pit
+                #print(f'lo: {pl} {pit} -{istrip} imp={pi-6} pp={pitchpos}')
                 pr = PathResponse(resp, pitchpos, wirepos=0)
                 paths.append(pr)
                 
@@ -318,7 +319,8 @@ def arrs2pr(wct, pitchdict):
             for istrip in range(1,6):
                 col = 4 + istrip
                 resp = pia[col]
-                pitchpos = (istrip - (5-pi)/10.0) * pit
+                pitchpos = istrip*pit - (5-pi)*0.1* pit
+                #print(f'hi: {pl} {pit} +{istrip} imp={5-pi} pp={pitchpos}')
                 pr = PathResponse(resp, pitchpos, wirepos=0)
                 paths.append(pr)
 

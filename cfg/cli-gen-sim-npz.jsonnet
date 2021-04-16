@@ -7,6 +7,8 @@ local g = import "pgraph.jsonnet";
 function(outfile, 
          resps_file=pcbront.defaults.files.responses,
          wires_file=pcbront.defaults.files.wires,
+         first_track="1",
+         last_track="7",
          do_sigproc=false)
 {
 
@@ -24,7 +26,7 @@ function(outfile,
                 tail: wc.point(t*5+10, -(2*t), -(2*t + 0.1), wc.cm),
                 head: wc.point(t*5   , +(2*t), +(2*t + 0.1), wc.cm),
             }
-        } for t in [1,2,3,4,5,6,7]],
+        } for t in std.range(std.parseInt(first_track),std.parseInt(last_track))],
 
     local depos = g.pnode({
         type: 'TrackDepos',
