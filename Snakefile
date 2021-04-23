@@ -27,18 +27,23 @@ fdir = config["rfrdir"]         # raw field response
 
 # These names must match what get-fpdata.sh provide.
 # We must enact different patterns depending on the sample.
-FP2SAMPLES = ["dv-2000v", "dv-2000v-h2mm0", "dv-2000v-h2mm5"]
+GF2SAMPLES = ["pcbro-response-avg"]
+# retire: "dv-2000v"
+FP2SAMPLES = ["dv-2000v-h2mm0", "dv-2000v-h2mm5"]
 FP3SAMPLES = ["reference3views-h2mm3", "reference3views-h2mm4"]
 FPSAMPLES = FP2SAMPLES + FP3SAMPLES
+FIELDS = FPSAMPLES + GF2SAMPLES
 
-fp_pitches_mm={
+fr_pitches_mm={
+    "pcbro-response-avg":[5.0,5.0,5.0],
     "dv-2000v":[5.0,5.0,5.0],
     "dv-2000v-h2mm0":[5.0,5.0,5.0],
     "dv-2000v-h2mm5":[5.0,5.0,5.0],    
     "reference3views-h2mm3":[7.35,7.35,4.9],
     "reference3views-h2mm4":[7.50,7.50,5.0]}
-def fp_pitches(w):
-    ppp = fp_pitches_mm[w.resp]
+
+def fr_pitches(w):
+    ppp = fr_pitches_mm[w.resp]
     return ",".join([f'{p}*mm' for p in ppp])
 
 
@@ -58,6 +63,12 @@ SIMTRIGGERS = [0]
 # fpresp/*.npz then each "resp" looks the same to the rest of the
 # rules.  They culminate in:
 fpresp_p = f"{odir}/fpresp/{{resp}}.npz"
+
+# the WCT field file
+wct_field_file_p = f"{odir}/resp/{{resp}}.json.bz2"
+
+# the WCT wires file
+wct_wires_file_p = f"{odir}/wires/{{resp}}-wires.json.bz2"
 
 # Make intermediate 2-view NPZ file from FP zip file.
 rule fp2npzfile:
@@ -98,18 +109,22 @@ rule fppdffile:
     input:
         fpresp_p
     output:
-        respf = f"{odir}/plots/fpresp/{{resp}}.pdf",
+        respf = f"{odir}/plots/fpresp/{{resp}}-diag.pdf",
         speed = f"{odir}/plots/fpresp/{{resp}}-speed.pdf",
-        speedzoom = f"{odir}/plots/fpresp/{{resp}}-speedzoom.pdf"
+        speedzoom = f"{odir}/plots/fpresp/{{resp}}-speedzoom.pdf",
+        sumf = f"{odir}/plots/fpresp/{{resp}}-sum.pdf",
+        wavf = f"{odir}/plots/fpresp/{{resp}}-wav.pdf"
     shell:
         """
-        wirecell-pcbro fpstrips-draw-fp {input} {output.respf} ;
-        wirecell-pcbro fpstrips-draw-speed             -o {output.speed} {input} ;
-        wirecell-pcbro fpstrips-draw-speed -s '110*us' -o {output.speedzoom} {input}
+        wirecell-pcbro draw-fp -m diag  -o {output.respf} {input};
+        wirecell-pcbro draw-fp -m sum   -o {output.sumf}  {input};
+        wirecell-pcbro draw-fp -m waves -s '110*us' -o {output.wavf}  {input};
+        wirecell-pcbro draw-fp -m speed -o {output.speed} {input} ;
+        wirecell-pcbro draw-fp -m speed -s '110*us' -o {output.speedzoom} {input}
         """
 
 # Make intermediate NPZ file following WCT units/layout
-rule wctnpzfile:
+rule fp_wctnpzfile:
     input:
         fpresp_p
     output:
@@ -118,26 +133,30 @@ rule wctnpzfile:
         "wirecell-pcbro fpstrips-wct-npz {input} {output}"
 
 # Make WCT field response JSON file from FP npz file
-rule wctjsonfile:
+rule convert_fp_to_wct_field_file:
     input:
         fpresp_p
     output:
-        f"{odir}/resp/{{resp}}.json.bz2"
+        wct_field_file_p
     params:
-        pitch = fp_pitches
+        pitch = fr_pitches
     shell:
         "wirecell-pcbro convert-fpstrips --pitch {params.pitch} {input} {output}"
 
-# We generate wires files on the fly
+# We generate wires files on the fly.
+#
+# Fixme: This does not really depend on the field file.  Better that
+# we extract the pitches to a json file and depend o that.
+# 
 # Fixme: using detector=50l is not right for 3-views
 # need to update gen-wires for true 3-views
 rule wiretxt:
     input:
-        fpresp_p
+        wct_field_file_p
     output:
         f"{odir}/wires/{{resp}}-wires.txt"
     params:
-        pitch = fp_pitches, 
+        pitch = fr_pitches, 
         detector = "50l"
     shell: """
     wirecell-pcbro gen-wires --detector {params.detector} --pitch '{params.pitch}' {output}
@@ -146,28 +165,28 @@ rule wctwires:
     input:
         rules.wiretxt.output
     output:
-        f"{odir}/wires/{{resp}}-wires.json.bz2"
+        wct_wires_file_p
     shell: """
     wirecell-util convert-oneside-wires {input} {output}
     """
 
 rule all_wires:
     input:
-        expand(rules.wctwires.output, resp=FPSAMPLES)
+        expand(rules.wctwires.output, resp=FIELDS)
 
 
 
 # Make standard WCT field response plots
 rule fieldplots:
     input:
-        rules.wctjsonfile.output
+        wct_field_file_p
     output:
         f"{odir}/plots/wctresp/{{resp}}.png"
     shell:
         "wirecell-sigproc plot-response --region 0 --trange 0,120 --reflect {input} {output}"
 rule fieldplotszoom:
     input:
-        rules.wctjsonfile.output
+        wct_field_file_p
     output:
         f"{odir}/plots/wctresp/{{resp}}-zoom.png"
     shell:
@@ -177,9 +196,9 @@ rule fieldplotszoom:
 # Run field response file preperation for all known samples
 rule all_fields:
     input:
-        expand(rules.wctjsonfile.output, resp=FPSAMPLES),
-        expand(rules.fieldplots.output, resp=FPSAMPLES),
-        expand(rules.fieldplotszoom.output, resp=FPSAMPLES),
+        expand(wct_field_file_p, resp=FPSAMPLES),
+        expand(rules.fieldplots.output, resp=FIELDS),
+        expand(rules.fieldplotszoom.output, resp=FIELDS),
         expand(rules.fppdffile.output, resp=FPSAMPLES)
 
 # Decode raw 50L data into NPZ
@@ -196,7 +215,7 @@ rule decode:
 rule sigproc:
     input:
         data = rawdata_bin_p,
-        resp = rules.wctjsonfile.output
+        resp = wct_field_file_p
     output:
         f"{odir}/proc/sig/sig-{{resp}}-{{timestamp}}.npz"
     shell: """
@@ -284,8 +303,8 @@ rule fav_proc:
 # or "ssp" (sim+sigproc)
 rule wctgentier:
     input:
-        wiresfile=rules.wctwires.output,
-        respfile=rules.wctjsonfile.output,
+        wiresfile=wct_wires_file_p,
+        respfile=wct_field_file_p,
         config=f"{cdir}/cli-gen-{{tier}}-npz.jsonnet"
     output:
         f"{odir}/proc/{{tier}}/gen/{{resp}}.npz"
@@ -303,8 +322,8 @@ rule wctgentier:
 # "sim" (just simulation) or "ssp" (sim+sigproc).
 rule wctnpztier:
     input:
-        wiresfile=rules.wctwires.output,
-        respfile=rules.wctjsonfile.output,
+        wiresfile=wct_wires_file_p,
+        respfile=wct_field_file_p,
         deposfile=f"{odir}/depos/{{depos}}.npz",
         config=f"{cdir}/cli-npz-{{tier}}-npz.jsonnet"
     output:

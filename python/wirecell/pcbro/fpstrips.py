@@ -44,23 +44,27 @@ def parse(text):
 
 
 def fpzip2arrs(datgen):
-    '''Given a data generator yielding (filename, text) from an archive of
-    FP's fort.NNN files, such as downloaded from dropbox, return
+    '''
+    Given a data generator yielding (filename, text) from an archive
+    of FP's fort.NNN files, such as downloaded from dropbox, return
     corresponding numpy arrays with no processing
 
     Return dict keyed by ("col", "ind") with values of 3D array with
     layout that spans dimensions of:
 
-        (<fid>, <column>, <sample>) 
+    (<fid>, <column>, <sample>)
 
-    Shapes are:
+    Shapes for 2-view are:
 
-        col: (6x12, 10, many1)
-        ind: (4x12, 10, many2)
+        - col: (6x12, 10, many1)
 
-    The many1 and many2 may not be equal.  Each 3D array has <sample>
-    dimension zero padded to fit maximum path.
+        - ind: (4x12, 10, many2)
 
+    3-view use this function one at a time faking each view as
+    "collection".
+
+    The manyN may not be equal.  Each 3D array has <sample> dimension
+    zero padded to fit maximum path.
     '''
     all_legal = legal_fids['ind'] + legal_fids['col']
 
@@ -362,14 +366,14 @@ def step_speed(path_txyz_step):
 # z:(199.95, ................., ......................... )mm
 # last z value: 16.54 with a ragged end point
 
-def draw_speed(arrs, outfile, start_time=0.0):
+def draw_fp_speed(arrs, outfile, start=0.0, **kwds):
     '''
     Draw drift speed as impact vs step
     '''
     sunits = units.mm/units.us
     fp_tick = 5*units.ns
-    start_tick = int(start_time / fp_tick)
-    start_us = start_time/units.us
+    start_tick = int(start / fp_tick)
+    start_us = start/units.us
     print(f'start at {start_us} us = {start_tick} FP ticks')
     with PdfPages(outfile) as pdf:
 
@@ -401,10 +405,83 @@ def draw_speed(arrs, outfile, start_time=0.0):
             plt.close();
             
 
+def draw_fp_waves(arrs, pdfname, start=0, **kwds):
+    '''
+    Draw representative waveforms
+    '''
+    fp_tick = 5*units.ns
+    start_tick = round(start/fp_tick)
+
+
+    what = osp.splitext(osp.basename(pdfname))[0]
+    with PdfPages(pdfname) as pdf:
+        plane_strips = list()
+        for pl, arr in sorted(arrs.items()):
+            
+            nticks = arr.shape[-1]
+            t_us = numpy.linspace(start/units.us, fp_tick*nticks/units.us,
+                                  nticks-start_tick, endpoint=False)
+
+            strips = numpy.sum(numpy.transpose(arr[:,4:,:], (1,0,2)), axis=1)[:,start_tick:]
+
+            for ind, s in enumerate(strips):
+                plt.plot(t_us, s/72, label=f'strip {ind}')
+            
+            plt.title(f"{pl} integrated per strip ({what})")
+            plt.ylabel("integrated current")
+            plt.xlabel("time [us]")
+            plt.legend()
+            pdf.savefig(plt.gcf())
+            plt.close();
+
+
+def draw_fp_sum(arrs, pdfname, **kwds):
+    '''
+    Integrate over time
+    '''
+    what = osp.splitext(osp.basename(pdfname))[0]
+    with PdfPages(pdfname) as pdf:
+        plane_strips = list()
+        for pl, arr in sorted(arrs.items()):
+
+            tots_eps = 0.1
+            tots = numpy.sum(arr[:,4:,:], axis=-1).T
+            tots[tots<tots_eps] = tots_eps  # 1e6 is peak collection
+            plt.imshow(numpy.log10(tots), aspect='auto')
+            plt.colorbar()        
+            plt.title(f"{pl} integrated FR, log10")
+            plt.ylabel("strip")
+            plt.xlabel("impact")
+            pdf.savefig(plt.gcf())
+            plt.close();
+
+
+            tots = numpy.sum(arr[:,4:,:], axis=-1)
+            tots_flat = numpy.flip(numpy.transpose(tots.reshape(-1,12,6), (2,1,0)), axis=1).reshape(-1)
+            plt.title(f"{pl} plane ({what})")
+            plt.ylabel("integrated current")
+            plt.xlabel("impact postion")
+            plt.plot(tots_flat)
+            pdf.savefig(plt.gcf())
+            plt.close();
+            
+            tots_strip = numpy.sum(numpy.transpose(arr[:,4:,:], (1,0,2)).reshape(6,-1), axis=-1)
+            plane_strips.append((pl, tots_strip))
+
+        for name, tots in plane_strips:
+            print (f'STRIP {name} {tots}')
+            plt.step(range(len(tots)), numpy.abs(tots), label=name, where='post')
+        plt.yscale('log')
+        plt.legend()
+        plt.title("Strip totals (abs)")
+        plt.ylabel("integrated current")
+        plt.xlabel("strip number")
+        pdf.savefig(plt.gcf())
+        plt.close();
 
 
 
-def draw_fp(arrs, pdfname, start=22000, skip=10):
+def draw_fp_diag(arrs, pdfname, start=0*units.us, skip=10, **kwds):
     '''
     Make multipage pdf file with diagnostic plots from FP-style
     arrays.
@@ -421,6 +498,12 @@ def draw_fp(arrs, pdfname, start=22000, skip=10):
     of processing to form input to conversion to WCT form.
     '''
     xyz="XYZ"
+
+    fp_tick = 5*units.ns
+    start = round(start/fp_tick)
+
+    # bit of evil, likely to break
+    what = osp.splitext(osp.basename(pdfname))[0]
 
     with PdfPages(pdfname) as pdf:
         for pl, arr in sorted(arrs.items()):

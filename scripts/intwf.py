@@ -17,10 +17,15 @@ def plotit(raw, sig):
 
     # raw
 
-    bl = raw - numpy.median(raw, axis=0)
+    #bl = numpy.abs(raw - numpy.median(raw, axis=0))
+    bl = numpy.copy(raw)
+    # perfect bl subtraction
+    bl[:,:64] += -4095*(200/2000)
+    bl[:,64:] += -4095*(900/2000)
+
     im = ax[0,0].imshow(bl, interpolation='none',aspect='auto')
     fig.colorbar(im, ax=ax[0,0])
-    ax[0,0].set_title("raw [baseline-sub ADC]")
+    ax[0,0].set_title("raw [perfect bl-sub ADC]")
 
     rsum = numpy.sum(bl, axis=0)
     rtots = ["%.1e"%t for t in plane_totals(rsum)]

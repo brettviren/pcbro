@@ -99,38 +99,34 @@ def fpstrips_trio_npz(ind1, ind2, col, npzname):
     for key,fname in keyed.items():
         af = archfile(fname)
         arrs = fpzip2arrs(af)
+        if 'ind' in arrs:
+            raise ValueError("unexpected 'ind' response")
         out[key] = arrs['col']
     numpy.savez(npzname, **out)
 
 
 
-@cli.command("fpstrips-draw-speed")
-@click.option("-o","--output", default="plot.pdf",
-              help="Output file")
+@cli.command("draw-fp")
+@click.option("-m", "--method", type=str, default='diag',
+              help="Set the drawing method")
 @click.option("-s","--start", default="0*us",
               help="Start time, using units")
-@click.argument("npzfile")
-def fpstrips_draw_speed(output, start, npzfile):
-    '''
-    Given an FP npz file, plot velocity magnitude as impact vs step
-    '''
-    start = eval(start, units.__dict__)
-
-    from .fpstrips import draw_speed
-    arrs = numpy.load(npzfile)
-    draw_speed(arrs, output, start)
-    
-
-@cli.command("fpstrips-draw-fp")
+@click.option("-o","--output", default="plot.pdf",
+              help="Output file")
 @click.argument("npzname")
-@click.argument("pdfname")
-def fpstrips_draw_fp(npzname, pdfname):
+def draw_fp(method, start, output, npzname):
     '''
     Make some drawings from the untouched npz file
     '''
-    from .fpstrips import draw_fp
+    start = eval(start, units.__dict__)
+
+    from . import fpstrips
+    meth = getattr(fpstrips, f'draw_fp_{method}')
+
     arrs = numpy.load(npzname)
-    draw_fp(arrs, pdfname)
+    meth(arrs, output, start=start)
+
+
 
 
 @cli.command("fpstrips-wct-npz")
