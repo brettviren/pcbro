@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import List, Dict
 import numpy
 from wirecell import units
+from wirecell.util.fileio import load as source_loader
 #fixme: this cross-package import indicates we should refactor.
 import wirecell.sigproc.garfield as wctgf
 from wirecell.pcbro import holes
@@ -32,26 +33,27 @@ def parse_filename(filename):
     dist, plane, LR, ab = osp.splitext(filename)[0].split('_')
     return locals()
 
-def tar_source(tarfilename):
-    return wctgf.asgenerator(tarfilename)
 
-def dir_source(dirname, planes=None):
-    import glob
-    for fname in glob.glob(osp.join(dirname, '*.dat')):
-        if planes:
-            pf = parse_filename(fname)
-            if not pf['plane'] in planes:
-                continue
-        yield (fname, open(fname, 'rb').read().decode())
+# def tar_source(tarfilename):
+#     return wctgf.asgenerator(tarfilename)
+
+# def dir_source(dirname, planes=None):
+#     for fname, data in source_loader(dirname, pattern='*.dat'):
+#         if planes:
+#             pf = parse_filename(fname)
+#             if not pf['plane'] in planes:
+#                 continue
+#         yield (fname, data.decode())
 
 def load(source):
     '''
     Load data from a sequence of (filename, contents) pairs
     '''
-    source = tar_source(source)
-    for fn,text in source:
+    source = source_loader(source)
+    for fn, data in source:
         fninfo = parse_filename(fn);
         print (fninfo)
+        text = data.decode()
         gen = wctgf.split_text_records(text)
 
         for rec in gen:

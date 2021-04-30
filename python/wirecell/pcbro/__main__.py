@@ -16,33 +16,16 @@ import wirecell.pcbro.draw as pcbdraw
 import wirecell.pcbro.holes as pcbholes
 import wirecell.sigproc.garfield as wctgf
 
-def zipgen(fname):
-    zf = zipfile.ZipFile(fname, 'r')
-    for fname in zf.namelist():
-        with zf.open(fname) as fp:
-            text = fp.read().decode()
-            yield fname, text
-
-
-def archfile(fname):
-    '''
-    Read .zip, .tar, .tgz archive of files
-    '''
-    if fname.endswith(".zip"):
-        return zipgen(fname)
-    elif fname.endswith(".tgz") or fname.endswith(".tar"):
-        return wctgf.asgenerator(fname)
-    raise ValueError(f'unsupported file: {fname}')
-
-def sourceme(source):
-    '''
-    Convert a tar file or directory path into a source
-    '''
-    if osp.splitext(source)[1] in ['.tar', '.tgz']:
-        return pcbgf.tar_source(source)
-    if osp.isdir(source):
-        return pcbgf.dir_source(source, ['ind'])
-    raise ValueError(f"Unsupported source: {source}")
+from wirecell.util.fileio import load as source_loader
+# def sourceme(source):
+#     '''
+#     Convert a tar file or directory path into a source
+#     '''
+#     if osp.splitext(source)[1] in ['.tar', '.tgz']:
+#         return pcbgf.tar_source(source)
+#     if osp.isdir(source):
+#         return pcbgf.dir_source(source, ['ind'])
+#     raise ValueError(f"Unsupported source: {source}")
 
 @click.group()
 @click.pass_context
@@ -71,7 +54,7 @@ def fpstrips_fp_npz(infile, npzname):
     '''
     from .fpstrips import fpzip2arrs
 
-    af = archfile(infile)
+    af = source_loader(infile)
     arrs = fpzip2arrs(af)
     numpy.savez(npzname, **arrs)
 
@@ -97,7 +80,7 @@ def fpstrips_trio_npz(ind1, ind2, col, npzname):
     out = dict()
     keyed = dict(ind1=ind1, ind2=ind2, col=col)
     for key,fname in keyed.items():
-        af = archfile(fname)
+        af = source_loader(fname)
         arrs = fpzip2arrs(af)
         if 'ind' in arrs:
             raise ValueError("unexpected 'ind' response")
@@ -189,7 +172,7 @@ def convert_fpstrips(tshift, nticks,
     from .fpstrips import fpzip2arrs, fp2wct, arrs2pr
     if osp.splitext(filename)[-1] in (".zip",".tar",".tgz"):
         print("Got FP archive")
-        af = archfile(filename)
+        af = sorce_loader(filename)
         fp = fpzip2arrs(af)
         wct = fp2wct(fp, tshift=tshift, nticks=nticks)
     elif filename.endswith(".npz"):
@@ -244,7 +227,6 @@ def convert_fpstrips(tshift, nticks,
 @click.option("-b", "--basename", default="pcbro-response",
               help="Set basename for output files")
 @click.argument("garfield-fileset")
-
 def convert_garfield(origin, speed, normalization, 
                      format,
                      garfield_fileset, basename):
@@ -269,7 +251,7 @@ def convert_garfield(origin, speed, normalization,
     }
 
 
-    ripem = gar.Ripem(sourceme(garfield_fileset))
+    ripem = gar.Ripem(source_loader(garfield_fileset))
     sipem = gar.Sipem(ripem)
 
     fnames = list()
@@ -315,7 +297,7 @@ def plot_garfield(output, source):
     convert-garfield.
 
     '''
-    source = sourceme(source)
+    source = source_loader(source, pattern="*.dat")
     pcbgf.plots(source, output)
 
 @cli.command("plot-holes")
