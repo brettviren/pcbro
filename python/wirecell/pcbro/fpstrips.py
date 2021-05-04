@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-'''Functions for operating on Francesco Pietropaolo's field response
+'''
+Functions for operating on Francesco Pietropaolo's field response
 results.
 
 '''
@@ -108,6 +109,43 @@ def fpzip2arrs(datgen):
     if ind is not None: ret['ind'] = ind
     return ret
 
+
+def fp2meta(arrs):
+    '''
+    Return meta data about the responses
+    '''
+    speed = 0.0
+    origin = 0.0
+
+    ret = dict()
+    pitches = dict()
+    locations = dict()
+
+    for pl, arr in sorted(arrs.items()):
+        # nfids, ncols, nsamps = arr.shape
+
+        oo = arr[:,3,1]*fp_dist_unit
+        origin += numpy.average(oo)
+
+        # skip first as it was wonky in early calculations
+        ss = step_speed(arr[:,:4,1:11])
+        speed += numpy.average(ss)
+
+    nt = 1000
+    t0 = numpy.average(arr[:,0,1])*units.us
+    t1 = numpy.average(arr[:,0,2+nt])*units.us
+    period = (t1-t0)/nt
+
+    nplns = len(arrs)
+    origin = origin/nplns
+    speed = speed/nplns
+    print(f'period={period/units.us:10.3f} us, origin={origin/units.mm:10.3f} mm, speed={speed/(units.mm/units.us):10.3f} mm/us')
+    ret.update(dict(origin=origin, speed=speed, tstart=0,
+                    period = period))
+    return ret
+
+        
+        
     
 def fp2wct(arrs, rebin=20, tshift=0, nticks=None):
     '''
@@ -156,7 +194,7 @@ def fp2wct(arrs, rebin=20, tshift=0, nticks=None):
 
         # break out the current arrays
         curs = arr[:, 4:, :]           # (nfids, 6, many)
-        print(f'{pl} input curs {curs.shape}')
+        #print(f'{pl} input curs {curs.shape}')
 
         # with PdfPages(f'debug-{pl}.pdf') as pdf:
         #     print(f'{pl} write debug PDF')
@@ -172,7 +210,7 @@ def fp2wct(arrs, rebin=20, tshift=0, nticks=None):
         # Average along the strip
         curs = numpy.mean(curs, axis=0)
         # now have shape: (nimps=12, nstrips=6, nsamps=many)
-        print(f'{pl} after mean {curs.shape}')
+        #print(f'{pl} after mean {curs.shape}')
         
         # FP's field calculation exploits an equivalence symmetry in
         # the strip+hole pattern for collection which is baked into
@@ -241,7 +279,7 @@ def fp2wct(arrs, rebin=20, tshift=0, nticks=None):
         curs = numpy.concatenate((curs, numpy.zeros(shape)), axis=2)
 
         # rejoin and done
-        print(f'txyz:{txyz.shape}, curs:{curs.shape}')
+        # print(f'txyz:{txyz.shape}, curs:{curs.shape}')
         # shape: (12, 10, many)
         almost = numpy.concatenate((txyz, curs), axis=1)
 
@@ -280,7 +318,7 @@ def arrs2pr(wct, pitchdict):
     for pl, arr in wct.items():
         pit = pitchdict[pl]
 
-        print(f'{pl} input shape {arr.shape}')
+        #print(f'{pl} input shape {arr.shape}')
 
         # with PdfPages(f'debug-{pl}.pdf') as pdf:
         #     print(f'{pl} write debug PDF')
@@ -331,7 +369,7 @@ def arrs2pr(wct, pitchdict):
         paths.sort(key=lambda pr: pr.pitchpos)
 
         ret[pl] = paths
-        print(f'{pl} make {len(paths)} paths')
+        #print(f'{pl} make {len(paths)} paths')
     return ret
 
 
@@ -366,6 +404,7 @@ def step_speed(path_txyz_step):
 # z:(199.95, ................., ......................... )mm
 # last z value: 16.54 with a ragged end point
 
+
 def draw_fp_speed(arrs, outfile, start=0.0, **kwds):
     '''
     Draw drift speed as impact vs step
@@ -374,12 +413,12 @@ def draw_fp_speed(arrs, outfile, start=0.0, **kwds):
     fp_tick = 5*units.ns
     start_tick = int(start / fp_tick)
     start_us = start/units.us
-    print(f'start at {start_us} us = {start_tick} FP ticks')
+    print(f'draw speed: start at {start_us} us = {start_tick} FP ticks')
     with PdfPages(outfile) as pdf:
 
         for pln, arr in sorted(arrs.items()):
             nfids, ncols, nsteps_tot = arr.shape
-            print(f'n FP steps: {nsteps_tot}')
+            print(f'draw speed: {pln}: num FP steps: {nsteps_tot}')
             nsteps = nsteps_tot - start_tick
             assert ncols == 10
 
@@ -392,7 +431,11 @@ def draw_fp_speed(arrs, outfile, start=0.0, **kwds):
             for ilong in range(nlong):
                 speed = step_speed(block[ilong])
                 speed = speed[:,1:] # throw away first sample
-                print(f'speed: {speed.shape} {speed[0]/(units.mm/units.us)}')
+                if ilong == 0:
+                    z = block[ilong,0,3,0]
+                    print(f'\torigin: {z/units.mm:.3f} mm, {sunits} us')
+                    avgspeed = numpy.average(speed[:10])
+                    print(f'\tspeed: {avgspeed/(units.mm/units.us):.3f} mm/us')
                 im = axes[ilong].imshow(speed/sunits, aspect='auto', 
                                         extent=extent, interpolation='none')
                 axes[ilong].set_ylabel(f'row {ilong}')
@@ -469,7 +512,7 @@ def draw_fp_sum(arrs, pdfname, **kwds):
             plane_strips.append((pl, tots_strip))
 
         for name, tots in plane_strips:
-            print (f'STRIP {name} {tots}')
+            #print (f'STRIP {name} {tots}')
             plt.step(range(len(tots)), numpy.abs(tots), label=name, where='post')
         plt.yscale('log')
         plt.legend()
@@ -513,7 +556,7 @@ def draw_fp_diag(arrs, pdfname, start=0*units.us, skip=10, **kwds):
 
             # start points
             xyzs = arr[:, 1:4, 0]
-            print (pl, arr.shape, xyzs.shape)
+            #print (pl, arr.shape, xyzs.shape)
 
             fig, axes = plt.subplots(nrows=3, ncols=1)
             for ind in range(3):
@@ -576,7 +619,7 @@ def draw_fp_diag(arrs, pdfname, start=0*units.us, skip=10, **kwds):
                     print(f'Swapping collection strip {ind}')
                     fid_w[ind, lu, :] = fid_w[ind, ld, :]
 
-            print("fid_w.shape", fid_w.shape)
+            #print("fid_w.shape", fid_w.shape)
             # flatten to absolute impact position
             fid_w = fid_w.reshape((12*6, -1))
             fid_tot = 5*units.nanosecond * numpy.sum(fid_w, axis=1)

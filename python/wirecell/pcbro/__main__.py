@@ -124,91 +124,94 @@ def fpstrips_wct_npz(fpnpz, wctnpz):
     wct = fp2wct(fp)
     numpy.savez(wctnpz, **wct)
 
+
+def load_sidecar(fpfile):
+    '''
+    Load a JSON "sidecar" to the given fpfile.
+    '''
+    for ext in ('.zip', '.tar', '.tgz', '.tar.gz'):
+        if fpfile.endswith(ext):
+            jsonfile = fpfile.replace(ext,'.json')
+            break
+    dat = json.loads(open(jsonfile,'rb').read().decode())
+    for p in dat['planes']:     # apply units
+        for united in ('pitch','hole'):
+            p[united] = eval(p[united], units.__dict__)
+    return dat
+
 @cli.command("convert-fpstrips")
 @click.option("--tshift", default=0, type=int,
               help="Number of ticks to shift response values")
 @click.option("--nticks", default=None, type=int,
               help="Limit total number of ticks in the response functions")
-@click.option("--tstart", default="0",
-              help="Set time start (use units eg 100*us).")
-@click.option("--origin", default="10.0*cm",
-              help="Set drift origin (give units, eg '10*cm').")
-@click.option("--period", default="100*ns",
-              help="Set sample period time (use units eg 0.1*us).")
-@click.option("--speed", default="1.6*mm/us",
-              help="Set nominal drift speed (give untis, eg '1.6*mm/us').")
-@click.option("--pitch", type=str, default="5*mm,5*mm,5*mm",
-              help="The pitches for the new response planes")
-@click.option("--normalization", default=0.0,
-              help="Set normalization: 0:none, <0:electrons, >0:multiplicative scale.  def=0")
+# @click.option("--tstart", default="0",
+#               help="Set time start (use units eg 100*us).")
+# @click.option("--origin", default="20.0*cm",
+#               help="Set drift origin (give units, eg '10*cm').")
+# @click.option("--period", default="100*ns",
+#               help="Set sample period time (use units eg 0.1*us).")
+# @click.option("--speed", default="1.55*mm/us",
+#               help="Set nominal drift speed (give untis, eg '1.6*mm/us').")
+# @click.option("--pitch", type=str, default="5*mm,5*mm,5*mm",
+#               help="The pitches for the new response planes")
 @click.option("--location", default="3.2*mm,3.2*mm,0*mm", 
               help="Set location of planes")
 @click.argument("filename")
 @click.argument("output")
-def convert_fpstrips(tshift, nticks,
-                     tstart, origin, period, speed, pitch,
-                     normalization, location,
-                     filename, output):
+def convert_fpstrips(tshift, nticks, location, filename, output):
     '''
     Convert FP field response data files to WCT format
     '''
-    # fr level
-    origin = eval(origin, units.__dict__)
-    tstart = eval(tstart, units.__dict__)
-    period = eval(period, units.__dict__)
-    speed = eval(speed, units.__dict__)
+    meta = load_sidecar(filename)
+    name = meta['name']
+    pitchpp = {p['name']:p['pitch'] for p in meta['planes']}
+    plns = [p['name'] for p in meta['planes']]
+    if len(plns) == 2:
+        plns = tuple([plns[0]] + list(plns))
+    print(f'loading {name}')
 
-    # pr level
-    if "," in pitch:
-        pitch = [eval(l, units.__dict__) for l in pitch.split(",")]
-    else:
-        pitch = [eval(pitch, units.__dict__)]*3
-    print(f"Got pitches: {pitch}")
+
     location = [eval(l, units.__dict__) for l in location.split(",")]
 
     import wirecell.sigproc.response.persist as per
     from wirecell.sigproc.response.schema import (
         FieldResponse, PlaneResponse)
-    from .fpstrips import fpzip2arrs, fp2wct, arrs2pr
+    from .fpstrips import fpzip2arrs, fp2wct, arrs2pr, fp2meta
+
+    rebin = 20
+
     if osp.splitext(filename)[-1] in (".zip",".tar",".tgz"):
         print("Got FP archive")
-        af = sorce_loader(filename)
-        fp = fpzip2arrs(af)
-        wct = fp2wct(fp, tshift=tshift, nticks=nticks)
+        af = source_loader(filename)
+        fparrs = fpzip2arrs(af)
+        wct = fp2wct(fparrs, rebin=rebin, tshift=tshift, nticks=nticks)
     elif filename.endswith(".npz"):
-        arrs = numpy.load(filename)
-        if arrs['col'].shape[0] > 12: # FP array
+        fparrs = numpy.load(filename)
+        if fparrs['col'].shape[0] > 12: # FP array
             print("Got FP NPZ")
-            wct = fp2wct(arrs, tshift=tshift, nticks=nticks)
+            wct = fp2wct(fparrs, rebin=rebin, tshift=tshift, nticks=nticks)
         else:                   # WCT array
-            print("Got WCT NPZ")
-            wct = arrs
+            raise ValueError("NPZ does not look like FP variety")
+            # print("Got WCT NPZ")
+            # wct = arrs
     else:
-        print(f"Unknown data file: {filename}")
+        raise ValueError(f"Unknown data file: {filename}")
 
+    meta = fp2meta(fparrs)
+    print(f'meta: {meta}')
+    origin = meta['origin']
+    speed = meta['speed']
+    period = meta['period']*rebin
+    tstart = meta['tstart']
+    
     anti_drift_axis = (1.0, 0.0, 0.0)
 
-    if "ind1" in arrs:
-        pd = dict(ind1=pitch[0],ind2=pitch[1],col=pitch[2])
-        print(f"Got 3 views with pitches {pd}")
-    else:
-        pd = dict(ind=pitch[0],col=pitch[1])
-        print(f"Got 2 views with pitches {pd}")
+    pathresp = arrs2pr(wct, pitchpp)
 
-    pathresp = arrs2pr(wct, pd)
+    planes = [
+        PlaneResponse(pathresp[nam], num, location[num], pitchpp[nam])
+        for num, nam in enumerate(plns)]
 
-    if "ind1" in pathresp:
-        planes = [
-            PlaneResponse(pathresp['ind1'], 0, location[0], pitch[0]),
-            PlaneResponse(pathresp['ind2'], 1, location[1], pitch[1]),
-            PlaneResponse(pathresp['col'], 2, location[2], pitch[2]),
-        ]
-    else:
-        planes = [
-            PlaneResponse(pathresp['ind'], 0, location[0], pitch[0]),
-            PlaneResponse(pathresp['ind'], 1, location[1], pitch[0]),
-            PlaneResponse(pathresp['col'], 2, location[2], pitch[1]),
-        ]
     fr = FieldResponse(planes, anti_drift_axis,
                        origin, tstart, period, speed)
     per.dump(output, fr)
