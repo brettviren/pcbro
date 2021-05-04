@@ -223,7 +223,7 @@ def fp2wct(arrs, rebin=20, tshift=0, nticks=None):
             ld = list(range(12))
             ld.reverse()
             for ind in range(1,6):
-                print(f'Swapping collection strip {ind}')
+                #print(f'Swapping collection strip {ind}')
                 curs[lu, ind, :] = curs[ld, ind, :]
 
 
@@ -616,7 +616,7 @@ def draw_fp_diag(arrs, pdfname, start=0*units.us, skip=10, **kwds):
                 ld = list(range(12))
                 ld.reverse()
                 for ind in [1,2,3]:
-                    print(f'Swapping collection strip {ind}')
+                    #print(f'Swapping collection strip {ind}')
                     fid_w[ind, lu, :] = fid_w[ind, ld, :]
 
             #print("fid_w.shape", fid_w.shape)

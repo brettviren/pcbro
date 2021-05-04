@@ -125,18 +125,20 @@ def fpstrips_wct_npz(fpnpz, wctnpz):
     numpy.savez(wctnpz, **wct)
 
 
-def load_sidecar(fpfile):
+def load_sidecar(filename):
     '''
     Load a JSON "sidecar" to the given fpfile.
     '''
-    for ext in ('.zip', '.tar', '.tgz', '.tar.gz'):
-        if fpfile.endswith(ext):
-            jsonfile = fpfile.replace(ext,'.json')
+    for ext in ('.json','.npz','.zip', '.tar', '.tgz', '.tar.gz'):
+        if filename.endswith(ext):
+            fname = filename.replace(ext,'.json')
             break
-    dat = json.loads(open(jsonfile,'rb').read().decode())
+    print(f'load sidecar meta data {fname}')
+    dat = json.loads(open(fname,'rb').read().decode())
     for p in dat['planes']:     # apply units
-        for united in ('pitch','hole'):
-            p[united] = eval(p[united], units.__dict__)
+        for united in ('pitch','hole','location'):
+            val = eval(p[united], units.__dict__)
+            p[united] = val
     return dat
 
 @cli.command("convert-fpstrips")
@@ -144,34 +146,25 @@ def load_sidecar(fpfile):
               help="Number of ticks to shift response values")
 @click.option("--nticks", default=None, type=int,
               help="Limit total number of ticks in the response functions")
-# @click.option("--tstart", default="0",
-#               help="Set time start (use units eg 100*us).")
-# @click.option("--origin", default="20.0*cm",
-#               help="Set drift origin (give units, eg '10*cm').")
-# @click.option("--period", default="100*ns",
-#               help="Set sample period time (use units eg 0.1*us).")
-# @click.option("--speed", default="1.55*mm/us",
-#               help="Set nominal drift speed (give untis, eg '1.6*mm/us').")
-# @click.option("--pitch", type=str, default="5*mm,5*mm,5*mm",
-#               help="The pitches for the new response planes")
-@click.option("--location", default="3.2*mm,3.2*mm,0*mm", 
-              help="Set location of planes")
+# fixme: move to meta data json file
+# @click.option("--location", default="3.2*mm,3.2*mm,0*mm", 
+#               help="Set location of planes")
+@click.option("-o", "--output", 
+              help="Output file")
 @click.argument("filename")
-@click.argument("output")
-def convert_fpstrips(tshift, nticks, location, filename, output):
+def convert_fpstrips(tshift, nticks, output, filename):
     '''
     Convert FP field response data files to WCT format
     '''
     meta = load_sidecar(filename)
     name = meta['name']
     pitchpp = {p['name']:p['pitch'] for p in meta['planes']}
+    location = [p['location'] for p in meta['planes']]
     plns = [p['name'] for p in meta['planes']]
     if len(plns) == 2:
-        plns = tuple([plns[0]] + list(plns))
+        plns.insert(0, plns[0])
+        location.insert(0, location[0])
     print(f'loading {name}')
-
-
-    location = [eval(l, units.__dict__) for l in location.split(",")]
 
     import wirecell.sigproc.response.persist as per
     from wirecell.sigproc.response.schema import (
@@ -365,27 +358,23 @@ def list_holes(strips, slices, planes, output):
               type=click.Choice(["50l"]),
               #type=click.Choice(["50l","ref3"]),
               help="Set the detector")
-@click.option("-p", "--pitch", default="5*mm",
-              help="Set pitch of planes")
-@click.argument("output-file")
-def gen_wires(detector, pitch, output_file):
-    '''Generate a "oneside wires" file.  Use "wirecell-util
-    convert-oneside-wires" to turn into .json.bz2 file.
+@click.option("-o", "--output",
+              help="Output file")
+@click.argument("config")
+def gen_wires(detector, output, config):
+    '''Generate wires
 
-    columns:
-        channel plane wire sx sy sz ex ey ez
+    Input file is FR "sidecar" json file.
     '''
     import wirecell.pcbro.wires as wires
 
-    if "," in pitch:
-        pitch = pitch.split(",")
-    else:
-        pitch = [pitch]*3
-    pitch = [eval(p, units.__dict__) for p in pitch]
-
+    meta = load_sidecar(config)
+    print(meta)
+    pitch = [p['pitch'] for p in meta['planes']]
+    loc = [p['location'] for p in meta['planes']]
     meth = getattr(wires, "generate_" + detector)
-    text = meth(pitch)
-    open(output_file,"wb").write(text.encode('ascii'))
+    text = meth(pitch, loc)
+    open(output,"wb").write(text.encode('ascii'))
 
 
 @cli.command("evd2d")

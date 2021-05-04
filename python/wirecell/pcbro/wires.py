@@ -17,12 +17,17 @@ def generate_ref3(pitches=(5*units.mm, 5*units.mm, 5*units.mm)):
 
 
 
-def generate_50l(pitches=(5*units.mm, 5*units.mm, 5*units.mm)):
+def generate_50l(pitches=(5*units.mm, 5*units.mm, 5*units.mm),
+                 xlocs=(20*units.mm, (20-3.3)*units.mm, 10*units.mm)):
 
     # 320mm x 320mm active area with 64x64 strips.  Strip pitch is
     # 5mm.  1.25mm hole at 2mm hole-pitch, 2.5mm hole at 3.33 mm
     # hole-pitch.  A collection strip has constant hole pattern.
     # Induction strip is half small-hole, half large-hole.
+
+    if len(pitches) == 2:
+        pitches = tuple([pitches[0]] + list(pitches))
+        xlocs = tuple([xlocs[0]] + list(xlocs))
 
     pitch_cm = [p/units.cm for p in pitches]
     
@@ -47,7 +52,7 @@ def generate_50l(pitches=(5*units.mm, 5*units.mm, 5*units.mm)):
     # positive Y.  A strip boundary between two middle strips is at
     # Y=0.
     plane=0
-    sx = ex = +0.1              # cm, bogus value
+    sx = ex = xlocs[0]/units.cm
     sz = -32*pitch_cm[plane]
     ez = +32*pitch_cm[plane]
     sy = ey = -32*pitch_cm[plane] + 0.5*pitch_cm[plane]
@@ -64,7 +69,7 @@ def generate_50l(pitches=(5*units.mm, 5*units.mm, 5*units.mm)):
     # induction but may have a different field response.
     plane=1
     # put collection strips pointing along Y-axis and just negative in X.
-    sx = ex = +0.1              # cm, and totally bogus
+    sx = ex = xlocs[1]/units.cm
     sz = -32*pitch_cm[plane]
     ez = +32*pitch_cm[plane]
     sy = ey = -32*pitch_cm[plane] + 0.5*pitch_cm[plane]
@@ -81,7 +86,7 @@ def generate_50l(pitches=(5*units.mm, 5*units.mm, 5*units.mm)):
     # have large holes.
     plane=2                     # collection
     # put collection strips pointing along Y-axis and just negative in X.
-    sx = ex = -0.1              # cm, and totally bogus
+    sx = ex = xlocs[2]/units.cm
     sy = -32*pitch_cm[plane]
     ey = +32*pitch_cm[plane]
     sz = ez = -32*pitch_cm[plane] + 0.5*pitch_cm[plane]

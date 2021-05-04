@@ -23,7 +23,7 @@ rawdata_bin_p = config["binpat"]
 cdir = config["cfgdir"]
 odir = config["outdir"]         # where to put stuff we make here
 fdir = config["rfrdir"]         # raw field response 
-
+wctdatadir = config["wctdatadir"]
 
 # These names must match what get-fpdata.sh provide.
 # We must enact different patterns depending on the sample.
@@ -33,18 +33,6 @@ FP2SAMPLES = ["dv-2000v-h2mm0", "dv-2000v-h2mm5"]
 FP3SAMPLES = ["reference3views-h2mm3", "reference3views-h2mm4"]
 FPSAMPLES = FP2SAMPLES + FP3SAMPLES
 FIELDS = FPSAMPLES + GF2SAMPLES
-
-fr_pitches_mm={
-    "pcbro-response-avg":[5.0,5.0,5.0],
-    "dv-2000v":[5.0,5.0,5.0],
-    "dv-2000v-h2mm0":[5.0,5.0,5.0],
-    "dv-2000v-h2mm5":[5.0,5.0,5.0],    
-    "reference3views-h2mm3":[7.35,7.35,4.9],
-    "reference3views-h2mm4":[7.50,7.50,5.0]}
-
-def fr_pitches(w):
-    ppp = fr_pitches_mm[w.resp]
-    return ",".join([f'{p}*mm' for p in ppp])
 
 
 # The 50L DAQ run timestamps we want to process
@@ -63,6 +51,7 @@ SIMTRIGGERS = [0]
 # fpresp/*.npz then each "resp" looks the same to the rest of the
 # rules.  They culminate in:
 fpresp_p = f"{odir}/fpresp/{{resp}}.npz"
+fpresp_meta_p = f"{odir}/fpresp/{{resp}}.json"
 
 # the WCT field file
 wct_field_file_p = f"{odir}/resp/{{resp}}.json.bz2"
@@ -73,13 +62,17 @@ wct_wires_file_p = f"{odir}/wires/{{resp}}-wires.json.bz2"
 # Make intermediate 2-view NPZ file from FP zip file.
 rule fp2npzfile:
     input: 
-        f"{fdir}/{{resp}}-fixed.tgz"
+        raw = f"{fdir}/{{resp}}-fixed.tgz",
+        meta = f"{fdir}/{{resp}}-fixed.json"
     output:
-        fpresp_p
+        npz = fpresp_p,
+        meta = fpresp_meta_p
     wildcard_constraints:
         resp=r"dv-2000v.*"
-    shell:
-        "wirecell-pcbro fpstrips-fp-npz {input} {output}"
+    shell: """
+    wirecell-pcbro fpstrips-fp-npz {input.raw} {output.npz}
+    cp {input.meta} {output.meta}
+    """
 
 # Make intermediate 3-view NPZ file from FP data repacked to tar file
 # for FP3SAMPLES reference3views-{hole}.  see scripts/get-fpdata.sh
@@ -87,9 +80,11 @@ rule fp3npzfile:
     input:
         col = f"{fdir}/{{resp}}/collection.tar",
         ind1 =f"{fdir}/{{resp}}/induction1.tar",
-        ind2 =f"{fdir}/{{resp}}/induction2.tar"
+        ind2 =f"{fdir}/{{resp}}/induction2.tar",
+        meta = f"{fdir}/{{resp}}.json",
     output:
-        fpresp_p
+        npz = fpresp_p,
+        meta = fpresp_meta_p
 
     wildcard_constraints:
         resp=r"reference.*"
@@ -97,7 +92,8 @@ rule fp3npzfile:
     shell: """
     wirecell-pcbro fpstrips-trio-npz \
       --col {input.col} --ind1 {input.ind1} --ind2 {input.ind2} \
-      {output}
+      {output.npz}
+    cp {input.meta} {output.meta}
     """
 rule all_fpnpz:
     input:
@@ -132,16 +128,14 @@ rule fp_wctnpzfile:
     shell:
         "wirecell-pcbro fpstrips-wct-npz {input} {output}"
 
-# Make WCT field response JSON file from FP npz file
+# Make WCT field response JSON file from FP npz file + JSON sidecar
 rule convert_fp_to_wct_field_file:
     input:
         fpresp_p
     output:
         wct_field_file_p
-    params:
-        pitch = fr_pitches
     shell:
-        "wirecell-pcbro convert-fpstrips --pitch {params.pitch} {input} {output}"
+        "wirecell-pcbro convert-fpstrips --output {output} {input}"
 
 # We generate wires files on the fly.
 #
@@ -152,14 +146,13 @@ rule convert_fp_to_wct_field_file:
 # need to update gen-wires for true 3-views
 rule wiretxt:
     input:
-        wct_field_file_p
+        fpresp_meta_p
     output:
         f"{odir}/wires/{{resp}}-wires.txt"
     params:
-        pitch = fr_pitches, 
         detector = "50l"
     shell: """
-    wirecell-pcbro gen-wires --detector {params.detector} --pitch '{params.pitch}' {output}
+    wirecell-pcbro gen-wires --detector {params.detector} --output {output} {input}
     """
 rule wctwires:
     input:
@@ -170,9 +163,42 @@ rule wctwires:
     wirecell-util convert-oneside-wires {input} {output}
     """
 
+rule plot_wires:
+    input:
+        wct_wires_file_p
+    output:
+        f"{odir}/plots/wires/{{resp}}.pdf"
+    shell: """
+    wirecell-util plot-wires {input} {output}
+    """
+    
+
+def resolve_wires(w):
+    if w.nviews == '2':
+        resp = 'dv-2000v-{holes}'.format(holes=w.holes)
+        return wct_wires_file_p.format(resp=resp)
+    if w.nviews == '3':
+        resp = 'reference3views-{holes}'.format(holes=w.holes)
+        return wct_wires_file_p.format(resp=resp)
+    raise ValueError(f'need to know nviews and holes, got: {w.nviews}')
+
+rule install_wires:
+    input:
+        resolve_wires
+    output:
+        f"{wctdatadir}/wires-{{nviews}}views-{{holes}}-{{ang}}.json.bz2"
+    shell: """
+        cp {input} {output}
+    """
+
 rule all_wires:
     input:
-        expand(rules.wctwires.output, resp=FIELDS)
+        expand(rules.wctwires.output, resp=FIELDS),
+        expand(rules.plot_wires.output, resp=FIELDS),
+        expand(rules.install_wires.output, nviews=[2], ang=[90],
+               holes=["h2mm0", "h2mm5"]),
+        expand(rules.install_wires.output, nviews=[3], ang=[60],
+               holes=["h2mm3", "h2mm4"])
 
 
 
@@ -193,13 +219,35 @@ rule fieldplotszoom:
         "wirecell-sigproc plot-response --region 0 --trange 100,120 --reflect {input} {output}"
 
 
+def resolve_fields(w):
+    if w.nviews == '2':
+        resp = 'dv-2000v-{holes}'.format(holes=w.holes)
+        return wct_field_file_p.format(resp=resp)
+    if w.nviews == '3':
+        resp = 'reference3views-{holes}'.format(holes=w.holes)
+        return wct_field_file_p.format(resp=resp)
+    raise ValueError(f'need to know nviews and holes, got: {w.nviews}')
+
+rule install_fields:
+    input:
+        resolve_fields
+    output:
+        f"{wctdatadir}/fields-{{nviews}}views-{{holes}}-{{ang}}.json.bz2"
+    shell: """
+        cp {input} {output}
+    """
+
 # Run field response file preperation for all known samples
 rule all_fields:
     input:
         expand(wct_field_file_p, resp=FPSAMPLES),
         expand(rules.fieldplots.output, resp=FIELDS),
         expand(rules.fieldplotszoom.output, resp=FIELDS),
-        expand(rules.fppdffile.output, resp=FPSAMPLES)
+        expand(rules.fppdffile.output, resp=FPSAMPLES),
+        expand(rules.install_fields.output, nviews=[2], ang=[90],
+               holes=["h2mm0", "h2mm5"]),
+        expand(rules.install_fields.output, nviews=[3], ang=[60],
+               holes=["h2mm3", "h2mm4"])
 
 # Decode raw 50L data into NPZ
 rule decode:
