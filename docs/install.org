@@ -1,5 +1,4 @@
 #+title: PCBro Installation
-
 The ~pcbro~ package provides a Wire-Cell Toolkit User Package (WCUP) building a WCT plugin library and it provides a python module with CLI.  It requires these two parts of a usual Wire-Cell Toolkit installation.
 
 * Install Wire-Cell Toolkit Plugin Library
@@ -27,14 +26,16 @@ The ~pcbro~ package provides a ~wirecell.pcbro~ Python module and a CLI called a
   $ python3 -m venv venv
   $ source venv/bin/activate
 
-  $ cd /path/to/wire-cell-toolkit/python
-  $ python -m pip install -e .  
-  
+  $ python -m pip install -e git+https://github.com/wirecell/wire-cell-python.git#egg=wirecell
+
   $ cd /path/to/pcbro/python
   $ python -m pip install -e .
 
   $ wirecell-pcbro --help
 #+end_example
+
+Note, if you want to hack on ~wire-cell-python~ you may ~git clone~ it and
+use the ~pip install -e .~ command like we do above for PCBro's Python.
 
 * Performance
 

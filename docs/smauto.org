@@ -2,8 +2,8 @@
 
 * Snakemake
 
-PCBRo provides a main ~Snakefile~ to automate various main tasks as well
-as some others for specific checks.
+PCBRo provides a main ~Snakefile~ to automate and run various main tasks
+in a very reproducible and self-documented manner.
 
 ** Main tasks
 
@@ -16,7 +16,23 @@ The main tasks include:
 - running WCT sim and raw/sim + sigproc using these fields.
 - making various diagnostic plots after various steps above.
 
+** Install
+
+If you do not already have ~snakemake~ available you may want to install
+it in your Python ~venv~, (see [[file:install.org]] for details).
+
+#+begin_example
+  $ python -m pip install snakemake
+#+end_example
+
+
 ** Setup
+
+A few working and product directory locations must be given to the
+~Snakefile~ either on the command line or via a small JSON file.  See
+[[file:../scripts/snakeit-bv.json]] for an example.  These high level
+configuration parameters have some descriptions at the top of the
+Snakefile.
 
 The main ~Snakefile~ assumes a "working directory" different than the
 source directory.  The working directory must hold the ~.bin~ files and
